@@ -114,26 +114,6 @@ export function formatShortDate(seconds: number): string {
   return `${date.getDate()} ${MONTHS[date.getMonth()]}`;
 }
 
-export function timelineLabel(seconds: number, resolution: number): string {
-  if (resolution <= 60) {
-    return clock(seconds);
-  }
-  if (resolution <= 3600) {
-    return `${clock(seconds)}`;
-  }
-  return formatShortDate(seconds);
-}
-
-export function timelineTooltip(seconds: number, resolution: number): string {
-  if (resolution <= 60) {
-    return formatDateTime(seconds);
-  }
-  if (resolution <= 3600) {
-    return `${formatShortDate(seconds)}, ${clock(seconds)}`;
-  }
-  return formatShortDate(seconds);
-}
-
 export function formatDays(days: number): string {
   if (!Number.isFinite(days) || days >= 9999) {
     return "—";

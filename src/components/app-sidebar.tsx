@@ -5,7 +5,7 @@ import {
   Gauge,
   Network,
   Settings as SettingsIcon,
-  Sparkles,
+  Telescope,
   type LucideIcon,
 } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -24,7 +24,7 @@ export type ViewId = "dashboard" | "usage" | "insights" | "interfaces" | "settin
 const NAV: { id: ViewId; label: string; icon: LucideIcon }[] = [
   { id: "dashboard", label: "Overview", icon: Gauge },
   { id: "usage", label: "Usage", icon: ChartColumn },
-  { id: "insights", label: "Insights", icon: Sparkles },
+  { id: "insights", label: "Insights", icon: Telescope },
   { id: "interfaces", label: "Interfaces", icon: Network },
   { id: "settings", label: "Settings", icon: SettingsIcon },
 ];

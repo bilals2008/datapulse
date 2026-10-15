@@ -75,22 +75,6 @@ export type Anomaly = {
   message: string;
 };
 
-export type TimelineBucket = {
-  ts: number;
-  rx: number;
-  tx: number;
-};
-
-export type Timeline = {
-  start: number;
-  end: number;
-  resolution: number;
-  rx: number;
-  tx: number;
-  buckets: TimelineBucket[];
-  interfaces: InterfaceTotal[];
-};
-
 export type WifiInfo = {
   ssid: string;
   signalPercent: number;
@@ -128,8 +112,6 @@ export const api = {
   anomalies: (limit = 50) => invoke<Anomaly[]>("get_anomalies", { limit }),
   dismissAnomaly: (id: number) => invoke<void>("dismiss_anomaly", { id }),
   dismissAllAnomalies: () => invoke<void>("dismiss_all_anomalies"),
-  timeline: (start: number, end: number) =>
-    invoke<Timeline>("get_timeline", { start, end }),
   wifiInfo: () => invoke<WifiInfo | null>("get_wifi_info"),
   appMeta: () => invoke<AppMeta>("get_app_meta"),
   clearHistory: () => invoke<void>("clear_history"),
