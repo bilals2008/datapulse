@@ -133,4 +133,5 @@ export const api = {
   wifiInfo: () => invoke<WifiInfo | null>("get_wifi_info"),
   appMeta: () => invoke<AppMeta>("get_app_meta"),
   clearHistory: () => invoke<void>("clear_history"),
+  openMainWindow: () => invoke<void>("open_main_window"),
 };

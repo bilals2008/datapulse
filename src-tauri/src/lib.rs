@@ -19,6 +19,10 @@ mod wifi;
 
 use state::AppState;
 
+/// Remembers when the popover auto-hid on focus loss so a tray click that
+/// caused that blur does not immediately reopen it.
+static POPOVER_HIDDEN_AT: Mutex<Option<Instant>> = Mutex::new(None);
+
 fn show_main_window(app: &tauri::AppHandle) {
     if let Some(window) = app.get_webview_window("main") {
         let _ = window.unminimize();
@@ -33,26 +37,97 @@ fn minimize_to_tray_enabled(app: &tauri::AppHandle) -> bool {
         .unwrap_or(false)
 }
 
-fn handle_window_event(window: &Window, event: &WindowEvent) {
-    if window.label() != "main" {
+fn toggle_popover(app: &tauri::AppHandle, anchor: PhysicalPosition<f64>) {
+    let Some(window) = app.get_webview_window("popover") else {
+        return;
+    };
+
+    if window.is_visible().unwrap_or(false) {
+        let _ = window.hide();
         return;
     }
 
-    match event {
-        WindowEvent::CloseRequested { api, .. } => {
-            if minimize_to_tray_enabled(window.app_handle()) {
+    if let Some(hidden_at) = *POPOVER_HIDDEN_AT.lock().unwrap() {
+        if hidden_at.elapsed() < Duration::from_millis(250) {
+            return;
+        }
+    }
+
+    position_popover(&window, anchor);
+    let _ = window.show();
+    let _ = window.set_focus();
+}
+
+/// Anchors the popover above the tray icon, clamped to the monitor work area.
+fn position_popover(window: &WebviewWindow, anchor: PhysicalPosition<f64>) {
+    let Ok(size) = window.outer_size() else {
+        return;
+    };
+
+    let monitor = window
+        .monitor_from_point(anchor.x, anchor.y)
+        .ok()
+        .flatten()
+        .or_else(|| window.primary_monitor().ok().flatten());
+
+    let margin = 8.0;
+    let mut x = anchor.x - size.width as f64 / 2.0;
+    let mut y = anchor.y - size.height as f64 - margin;
+
+    if let Some(monitor) = monitor {
+        let origin = monitor.position();
+        let extent = monitor.size();
+        let min_x = origin.x as f64 + margin;
+        let min_y = origin.y as f64 + margin;
+        let max_x = origin.x as f64 + extent.width as f64 - size.width as f64 - margin;
+        let max_y = origin.y as f64 + extent.height as f64 - size.height as f64 - margin;
+        x = x.clamp(min_x, max_x.max(min_x));
+        y = y.clamp(min_y, max_y.max(min_y));
+    }
+
+    let _ = window.set_position(PhysicalPosition::new(x as i32, y as i32));
+}
+
+fn handle_window_event(window: &Window, event: &WindowEvent) {
+    match window.label() {
+        "main" => match event {
+            WindowEvent::CloseRequested { api, .. } => {
+                if minimize_to_tray_enabled(window.app_handle()) {
+                    api.prevent_close();
+                    let _ = window.hide();
+                }
+            }
+            WindowEvent::Resized(_) => {
+                if minimize_to_tray_enabled(window.app_handle())
+                    && window.is_minimized().unwrap_or(false)
+                {
+                    let _ = window.hide();
+                }
+            }
+            _ => {}
+        },
+        "popover" => match event {
+            WindowEvent::Focused(false) => {
+                if window.is_visible().unwrap_or(false) {
+                    *POPOVER_HIDDEN_AT.lock().unwrap() = Some(Instant::now());
+                    let _ = window.hide();
+                }
+            }
+            WindowEvent::CloseRequested { api, .. } => {
                 api.prevent_close();
                 let _ = window.hide();
             }
-        }
-        WindowEvent::Resized(_) => {
-            if minimize_to_tray_enabled(window.app_handle())
-                && window.is_minimized().unwrap_or(false)
-            {
-                let _ = window.hide();
-            }
-        }
+            _ => {}
+        },
         _ => {}
+    }
+}
+
+#[tauri::command]
+fn open_main_window(app: tauri::AppHandle) {
+    show_main_window(&app);
+    if let Some(popover) = app.get_webview_window("popover") {
+        let _ = popover.hide();
     }
 }
 
@@ -103,10 +178,11 @@ pub fn run() {
                     if let TrayIconEvent::Click {
                         button: MouseButton::Left,
                         button_state: MouseButtonState::Up,
+                        position,
                         ..
                     } = event
                     {
-                        show_main_window(tray.app_handle());
+                        toggle_popover(tray.app_handle(), position);
                     }
                 })
                 .build(app)?;
@@ -114,6 +190,7 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            open_main_window,
             commands::get_snapshot,
             commands::get_settings,
             commands::set_settings,

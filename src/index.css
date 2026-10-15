@@ -175,6 +175,10 @@
         -webkit-tap-highlight-color: transparent;
     }
 
+    html[data-window="popover"] body {
+        background: transparent;
+    }
+
     input,
     textarea,
     select,

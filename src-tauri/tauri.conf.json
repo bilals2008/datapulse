@@ -23,6 +23,21 @@
         "maximizable": true,
         "decorations": false,
         "shadow": true
+      },
+      {
+        "label": "popover",
+        "title": "DataPulse",
+        "width": 288,
+        "height": 322,
+        "resizable": false,
+        "maximizable": false,
+        "minimizable": false,
+        "decorations": false,
+        "transparent": true,
+        "shadow": false,
+        "alwaysOnTop": true,
+        "skipTaskbar": true,
+        "visible": false
       }
     ],
     "security": {
