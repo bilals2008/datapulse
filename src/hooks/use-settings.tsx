@@ -13,7 +13,12 @@ type SettingsContextValue = {
   update: (patch: Partial<AppSettings>) => Promise<void>;
 };
 
-const DEFAULT_SETTINGS: AppSettings = { refreshMs: 1000, quotaGb: 0, resetDay: 1 };
+const DEFAULT_SETTINGS: AppSettings = {
+  refreshMs: 1000,
+  quotaGb: 0,
+  resetDay: 1,
+  minimizeToTray: false,
+};
 
 const SettingsContext = createContext<SettingsContextValue>({
   settings: null,

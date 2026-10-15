@@ -69,6 +69,7 @@ export type AppSettings = {
   refreshMs: number;
   quotaGb: number;
   resetDay: number;
+  minimizeToTray: boolean;
 };
 
 export type UsageRange = "today" | "7d" | "30d" | "12m";

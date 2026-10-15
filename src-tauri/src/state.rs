@@ -12,6 +12,7 @@ pub struct Config {
     pub refresh_ms: u64,
     pub quota_gb: f64,
     pub reset_day: u32,
+    pub minimize_to_tray: bool,
 }
 
 impl Default for Config {
@@ -20,6 +21,7 @@ impl Default for Config {
             refresh_ms: 1000,
             quota_gb: 0.0,
             reset_day: 1,
+            minimize_to_tray: false,
         }
     }
 }

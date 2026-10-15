@@ -33,6 +33,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { usePoll } from "@/hooks/use-poll";
 import { useSettings } from "@/hooks/use-settings";
@@ -143,6 +144,36 @@ export function SettingsView() {
               </SelectGroup>
             </SelectContent>
           </Select>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>System tray</CardTitle>
+          <CardDescription>
+            Keep DataPulse running in the background. Minimizing or closing the
+            window hides it to the tray instead of quitting.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="flex items-center justify-between gap-4">
+          <div className="flex flex-col gap-0.5">
+            <Label htmlFor="minimize-to-tray">Minimize to tray</Label>
+            <p className="text-xs text-muted-foreground">
+              Reopen from the tray icon; use its menu to quit.
+            </p>
+          </div>
+          <Switch
+            id="minimize-to-tray"
+            checked={settings?.minimizeToTray ?? false}
+            disabled={!settings}
+            onCheckedChange={(checked) => {
+              void update({ minimizeToTray: checked }).then(() =>
+                toast.success(
+                  checked ? "Minimize to tray enabled" : "Minimize to tray disabled",
+                ),
+              );
+            }}
+          />
         </CardContent>
       </Card>
 

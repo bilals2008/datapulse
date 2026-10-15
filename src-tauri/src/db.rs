@@ -178,6 +178,11 @@ pub fn load_config(conn: &Connection) -> Result<Config, AppError> {
                     config.reset_day = parsed;
                 }
             }
+            "minimize_to_tray" => {
+                if let Ok(parsed) = value.parse() {
+                    config.minimize_to_tray = parsed;
+                }
+            }
             _ => {}
         }
     }
@@ -189,6 +194,7 @@ pub fn save_config(conn: &Connection, config: &Config) -> Result<(), AppError> {
         ("refresh_ms", config.refresh_ms.to_string()),
         ("quota_gb", config.quota_gb.to_string()),
         ("reset_day", config.reset_day.to_string()),
+        ("minimize_to_tray", config.minimize_to_tray.to_string()),
     ];
     for (key, value) in pairs {
         conn.execute(
