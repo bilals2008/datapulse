@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
 import { InfoField } from "@/components/info-field";
+import { UpdateCard } from "@/components/update-card";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -146,6 +147,8 @@ export function SettingsView() {
           </Select>
         </CardContent>
       </Card>
+
+      <UpdateCard />
 
       <Card>
         <CardHeader>

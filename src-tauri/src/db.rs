@@ -199,6 +199,11 @@ pub fn load_config(conn: &Connection) -> Result<Config, AppError> {
                     config.minimize_to_tray = parsed;
                 }
             }
+            "auto_check_updates" => {
+                if let Ok(parsed) = value.parse() {
+                    config.auto_check_updates = parsed;
+                }
+            }
             _ => {}
         }
     }
@@ -211,6 +216,7 @@ pub fn save_config(conn: &Connection, config: &Config) -> Result<(), AppError> {
         ("quota_gb", config.quota_gb.to_string()),
         ("reset_day", config.reset_day.to_string()),
         ("minimize_to_tray", config.minimize_to_tray.to_string()),
+        ("auto_check_updates", config.auto_check_updates.to_string()),
     ];
     for (key, value) in pairs {
         conn.execute(

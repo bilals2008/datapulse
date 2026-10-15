@@ -18,6 +18,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   quotaGb: 0,
   resetDay: 1,
   minimizeToTray: false,
+  autoCheckUpdates: true,
 };
 
 const SettingsContext = createContext<SettingsContextValue>({

@@ -135,6 +135,8 @@ fn open_main_window(app: tauri::AppHandle) {
 pub fn run() {
     let app = tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_process::init())
         .on_window_event(handle_window_event)
         .setup(|app| {
             let data_dir = app.path().app_data_dir()?;

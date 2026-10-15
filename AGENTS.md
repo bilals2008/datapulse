@@ -12,7 +12,9 @@ usage. Windows-first (Wi-Fi details come from `netsh`).
 - `npm run build` — `tsc && vite build`.
 - `cargo check --manifest-path src-tauri/Cargo.toml` — backend compile check.
 - `npm run tauri icon public/logo.png` — regenerate the app icon set from the logo.
-- `npm run tauri build` — production desktop bundle.
+- `npm run tauri build` — production desktop bundle (needs the updater signing key).
+- `node scripts/bump-version.mjs <patch|minor|major|x.y.z>` — bump the version in
+  `package.json`, `tauri.conf.json`, `Cargo.toml` and `Cargo.lock` together.
 
 ## Stack
 
@@ -31,11 +33,13 @@ usage. Windows-first (Wi-Fi details come from `netsh`).
 src-tauri/src/   models, error, state, net (counters), wifi (netsh),
                  db (SQLite), collector (thread + `pulse-tick`), commands (IPC), lib
 src/lib/         ipc.ts (typed invoke wrappers + shared types), format.ts
-src/hooks/       use-poll, use-settings (SettingsProvider), use-live-stats (LiveStatsProvider)
+src/hooks/       use-poll, use-settings (SettingsProvider), use-live-stats (LiveStatsProvider),
+                 use-updater (UpdaterProvider + auto-check on startup)
 src/components/  app-sidebar, quota-card, network-card, usage-chart, live-sparkline,
-                 info-field, theme-toggle, ui/* (shadcn)
+                 update-card, info-field, theme-toggle, ui/* (shadcn)
 src/pages/       dashboard, usage, interfaces, settings
 src/index.css    single source of truth for design tokens
+scripts/         bump-version.mjs (keeps every version field in sync)
 ```
 
 ## Conventions
@@ -67,3 +71,19 @@ src/index.css    single source of truth for design tokens
   `app_data_dir` (WAL mode). Startup reconciles counters via `iface_cumulative`.
 - Local-day bucketing is done in Rust (chrono `Local` offset); gaps are zero-filled.
 - Navigation is state-based (`ViewId`), keyboard shortcuts `Ctrl/Cmd + 1..4`.
+
+## Releases & updates
+
+- The app ships with the Tauri updater (`tauri-plugin-updater` + `tauri-plugin-process`).
+  It polls `plugins.updater.endpoints` in `tauri.conf.json` (GitHub
+  `releases/latest/download/latest.json`) and verifies bundles against the public
+  key there. `bundle.createUpdaterArtifacts` must stay `true` for this to work.
+- Generate the signing key once: `npm run tauri signer generate -w ~/.tauri/datapulse.key`.
+  Put the private key in the repo secrets `TAURI_SIGNING_PRIVATE_KEY` and
+  `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`; keep the public key in `tauri.conf.json`.
+- Cut a release from **Actions → Release → Run workflow** (pick `patch`/`minor`/`major`,
+  or `explicit` + a version). It bumps every version file, tags `vX.Y.Z`, builds all
+  platforms and uploads a **draft** GitHub release. Publish the draft to ship the update.
+- Replace `YOUR_GITHUB_USER` in `src-tauri/tauri.conf.json` and
+  `src/components/update-card.tsx` with the real GitHub owner once the repo is public.
+- `ci.yml` runs typecheck + `vite build` + `cargo check` on PRs and `main`.

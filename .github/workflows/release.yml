@@ -1,0 +1,154 @@
+name: Release
+
+# Cut a release from the Actions tab -> "Run release" (pick patch/minor/major,
+# or "explicit" plus an exact version). The version job bumps the version in
+# package.json, src-tauri/tauri.conf.json, src-tauri/Cargo.toml and Cargo.lock,
+# commits it, and pushes a vX.Y.Z tag. The build matrix then packages the app
+# on every platform and uploads the bundles plus latest.json to a DRAFT GitHub
+# release. Review the draft and publish it when ready.
+#
+# Publishing the draft is what makes the update live: the in-app updater reads
+# releases/latest/download/latest.json, which only resolves to published
+# (non-draft, non-prerelease) releases.
+#
+# Required repository secrets:
+#   TAURI_SIGNING_PRIVATE_KEY           (contents of ~/.tauri/datapulse.key)
+#   TAURI_SIGNING_PRIVATE_KEY_PASSWORD  (empty string if the key has no password)
+#
+# Optional (macOS signing + notarization; without them macOS builds are unsigned):
+#   APPLE_CERTIFICATE, APPLE_CERTIFICATE_PASSWORD, APPLE_SIGNING_IDENTITY,
+#   APPLE_ID, APPLE_PASSWORD, APPLE_TEAM_ID
+on:
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: "Version bump"
+        required: true
+        type: choice
+        default: patch
+        options:
+          - patch
+          - minor
+          - major
+          - explicit
+      version:
+        description: "Exact version, e.g. 1.0.0 (only used when bump = explicit)"
+        required: false
+        type: string
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  version:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.bump.outputs.tag }}
+      ref: ${{ steps.bump.outputs.ref }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Configure git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Bump version, commit and tag
+        id: bump
+        env:
+          BUMP: ${{ inputs.bump }}
+          VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+
+          if [ "$BUMP" = "explicit" ]; then
+            if [ -z "$VERSION" ]; then
+              echo "bump = explicit requires the 'version' input" >&2
+              exit 1
+            fi
+            NEXT=$(node scripts/bump-version.mjs "$VERSION")
+          else
+            NEXT=$(node scripts/bump-version.mjs "$BUMP")
+          fi
+
+          echo "version=$NEXT" >> "$GITHUB_OUTPUT"
+          echo "tag=v$NEXT" >> "$GITHUB_OUTPUT"
+
+          git add package.json src-tauri/tauri.conf.json src-tauri/Cargo.toml src-tauri/Cargo.lock
+          git commit -m "chore: release v$NEXT"
+          git push origin "HEAD:${{ github.ref_name }}"
+          git push origin "v$NEXT"
+
+          echo "ref=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+  release:
+    needs: [version]
+    if: always() && (github.event_name == 'push' || needs.version.result == 'success')
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: macos-latest
+            args: "--target aarch64-apple-darwin"
+          - platform: macos-latest
+            args: "--target x86_64-apple-darwin"
+          - platform: ubuntu-22.04
+            args: ""
+          - platform: windows-latest
+            args: ""
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.version.outputs.ref || github.sha }}
+
+      - name: Install Linux dependencies
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ startsWith(matrix.platform, 'macos') && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: "./src-tauri -> target"
+
+      - run: npm ci
+
+      - name: Build and publish draft release
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        with:
+          tagName: v__VERSION__
+          releaseName: "DataPulse v__VERSION__"
+          releaseBody: "Download the installer for your platform below. Installed copies update automatically."
+          releaseDraft: true
+          prerelease: false
+          args: ${{ matrix.args }}
