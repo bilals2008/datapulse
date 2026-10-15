@@ -6,8 +6,8 @@ use tauri::State;
 use crate::analytics;
 use crate::error::AppError;
 use crate::models::{
-    Anomaly, AppMeta, InterfaceTotal, QuotaStatus, TickPayload, Timeline, TimelineBucket,
-    UsageBucket, UsageSeries,
+    Anomaly, AppMeta, BusiestDay, DailyTotal, InterfaceTotal, QuotaStatus, Recap, TickPayload,
+    Timeline, TimelineBucket, UsageBucket, UsageSeries,
 };
 use crate::state::{AppState, Config};
 use crate::{db, net};
@@ -234,6 +234,109 @@ pub fn get_timeline(state: State<'_, Arc<AppState>>, start: i64, end: i64) -> Re
             })
             .collect(),
     })
+}
+
+#[tauri::command]
+pub fn get_daily_activity(state: State<'_, Arc<AppState>>, days: u32) -> Res<Vec<DailyTotal>> {
+    let days = days.clamp(7, 366) as i64;
+    let start = local_midnight(days - 1);
+    let tz = analytics::local_offset_secs();
+
+    let rows = {
+        let conn = state.db.lock().unwrap();
+        db::daily_totals(&conn, start.timestamp(), tz)?
+    };
+
+    let mut map: HashMap<i64, (u64, u64)> = rows
+        .into_iter()
+        .map(|(ts, rx, tx)| (ts, (rx, tx)))
+        .collect();
+
+    let mut out = Vec::with_capacity(days as usize);
+    for offset in 0..days {
+        let day = start + ChronoDuration::days(offset);
+        let (rx, tx) = map.remove(&day.timestamp()).unwrap_or((0, 0));
+        out.push(DailyTotal {
+            day: day.format("%Y-%m-%d").to_string(),
+            rx,
+            tx,
+        });
+    }
+    Ok(out)
+}
+
+#[tauri::command]
+pub fn get_recap(state: State<'_, Arc<AppState>>) -> Res<Recap> {
+    let tz = analytics::local_offset_secs();
+    let week_start = local_midnight(6).timestamp();
+    let prev_start = local_midnight(13).timestamp();
+
+    let (this_week, last_week, busiest_day, busiest_hour, top_interface) = {
+        let conn = state.db.lock().unwrap();
+
+        let daily = db::daily_totals(&conn, prev_start, tz)?;
+        let mut this_week = 0_u64;
+        let mut last_week = 0_u64;
+        let mut busiest_day: Option<BusiestDay> = None;
+
+        for (ts, rx, tx) in daily {
+            let total = rx + tx;
+            if ts >= week_start {
+                this_week += total;
+                if busiest_day.as_ref().map_or(true, |day| total > day.bytes) {
+                    busiest_day = Some(BusiestDay {
+                        day: format_local_day(ts),
+                        bytes: total,
+                    });
+                }
+            } else if ts >= prev_start {
+                last_week += total;
+            }
+        }
+
+        let busiest_hour = db::hourly_totals(&conn, week_start, tz)
+            .unwrap_or_default()
+            .into_iter()
+            .filter(|(_, bytes)| *bytes > 0)
+            .max_by_key(|(_, bytes)| *bytes)
+            .map(|(hour, _)| hour);
+
+        let top_interface = db::interface_totals(&conn, week_start)?
+            .into_iter()
+            .next()
+            .map(|(name, rx, tx)| InterfaceTotal {
+                is_wireless: net::is_wireless(&name),
+                name,
+                rx,
+                tx,
+            });
+
+        (this_week, last_week, busiest_day, busiest_hour, top_interface)
+    };
+
+    let delta_percent = if last_week > 0 {
+        (this_week as f64 - last_week as f64) / last_week as f64 * 100.0
+    } else {
+        0.0
+    };
+
+    Ok(Recap {
+        this_week,
+        last_week,
+        delta_percent,
+        avg_daily: this_week / 7,
+        busiest_day,
+        busiest_hour,
+        top_interface,
+    })
+}
+
+fn format_local_day(ts: i64) -> String {
+    Local
+        .timestamp_opt(ts, 0)
+        .single()
+        .map(|dt| dt.format("%Y-%m-%d").to_string())
+        .unwrap_or_default()
 }
 
 fn resolve_resolution(span: i64) -> i64 {

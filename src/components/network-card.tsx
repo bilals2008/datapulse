@@ -9,8 +9,56 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { usePoll } from "@/hooks/use-poll";
-import { api } from "@/lib/ipc";
+import { api, type WifiInfo } from "@/lib/ipc";
 import { cn } from "@/lib/utils";
+
+type Health = {
+  label: string;
+  dot: string;
+  hint: string;
+};
+
+const LEGACY_RADIOS = new Set([
+  "802.11a",
+  "802.11b",
+  "802.11g",
+  "802.11n",
+]);
+
+function assess(wifi: WifiInfo): Health {
+  const signal = wifi.signalPercent;
+  const channel = Number(wifi.channel);
+  const on2_4ghz = Number.isFinite(channel) && channel >= 1 && channel <= 14;
+  const legacy = LEGACY_RADIOS.has(wifi.radioType.trim().toLowerCase());
+
+  if (signal >= 70) {
+    return {
+      label: "Strong",
+      dot: "bg-success",
+      hint: legacy
+        ? "Legacy radio — a Wi-Fi 5/6 adapter would raise your ceiling."
+        : on2_4ghz
+          ? "Solid link, but 2.4 GHz is congested — prefer 5 GHz."
+          : "Signal and radio both look healthy.",
+    };
+  }
+
+  if (signal >= 45) {
+    return {
+      label: "Fair",
+      dot: "bg-warning",
+      hint: on2_4ghz
+        ? "2.4 GHz band is busy — a 5 GHz network would be more reliable."
+        : "Move closer to the router or reduce obstacles.",
+    };
+  }
+
+  return {
+    label: "Weak",
+    dot: "bg-destructive",
+    hint: "Poor signal — expect slowdowns. Move closer to the router.",
+  };
+}
 
 function SignalBars({ percent }: { percent: number }) {
   const active = Math.max(1, Math.ceil(percent / 25));
@@ -39,6 +87,7 @@ function SignalBars({ percent }: { percent: number }) {
 
 export function NetworkCard() {
   const { data: wifi } = usePoll(api.wifiInfo, 15000);
+  const health = wifi ? assess(wifi) : null;
 
   return (
     <Card>
@@ -66,6 +115,21 @@ export function NetworkCard() {
               <InfoField label="Channel" value={wifi.channel || "—"} />
               <InfoField label="Link down" value={`${wifi.rxMbps} Mbps`} />
               <InfoField label="Link up" value={`${wifi.txMbps} Mbps`} />
+            </div>
+            <div className="flex items-start gap-2 border-t border-border/60 pt-3">
+              <span
+                className={cn(
+                  "mt-1 size-1.5 shrink-0 rounded-full",
+                  health?.dot,
+                )}
+                aria-hidden="true"
+              />
+              <p className="text-xs text-muted-foreground [text-wrap:pretty]">
+                <span className="font-medium text-foreground">
+                  {health?.label} signal.
+                </span>{" "}
+                {health?.hint}
+              </p>
             </div>
           </div>
         ) : (

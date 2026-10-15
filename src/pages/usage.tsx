@@ -1,6 +1,7 @@
 import { Cable, Wifi } from "lucide-react";
 import { useState } from "react";
 
+import { ActivityHeatmap } from "@/components/activity-heatmap";
 import { InfoField } from "@/components/info-field";
 import { UsageChart } from "@/components/usage-chart";
 import { Badge } from "@/components/ui/badge";
@@ -109,6 +110,8 @@ export function UsageView() {
           )}
         </CardContent>
       </Card>
+
+      <ActivityHeatmap />
 
       <Card>
         <CardHeader>

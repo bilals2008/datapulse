@@ -90,6 +90,27 @@ export type AppMeta = {
   platform: string;
 };
 
+export type DailyTotal = {
+  day: string;
+  rx: number;
+  tx: number;
+};
+
+export type BusiestDay = {
+  day: string;
+  bytes: number;
+};
+
+export type Recap = {
+  thisWeek: number;
+  lastWeek: number;
+  deltaPercent: number;
+  avgDaily: number;
+  busiestDay: BusiestDay | null;
+  busiestHour: number | null;
+  topInterface: InterfaceTotal | null;
+};
+
 export type AppSettings = {
   refreshMs: number;
   quotaGb: number;
@@ -112,6 +133,9 @@ export const api = {
   anomalies: (limit = 50) => invoke<Anomaly[]>("get_anomalies", { limit }),
   dismissAnomaly: (id: number) => invoke<void>("dismiss_anomaly", { id }),
   dismissAllAnomalies: () => invoke<void>("dismiss_all_anomalies"),
+  dailyActivity: (days: number) =>
+    invoke<DailyTotal[]>("get_daily_activity", { days }),
+  recap: () => invoke<Recap>("get_recap"),
   wifiInfo: () => invoke<WifiInfo | null>("get_wifi_info"),
   appMeta: () => invoke<AppMeta>("get_app_meta"),
   clearHistory: () => invoke<void>("clear_history"),

@@ -88,6 +88,27 @@ export function formatDay(timestampSeconds: number): string {
   return `${date.getDate()} ${MONTHS[date.getMonth()]} ${date.getFullYear()}`;
 }
 
+/** Human label for a `YYYY-MM-DD` bucket key, e.g. `Mon, 12 May 2026`. */
+export function formatDayKey(day: string): string {
+  const [year, month, date] = day.split("-").map(Number);
+  const value = new Date(year, month - 1, date);
+  if (Number.isNaN(value.getTime())) return day;
+  return `${WEEKDAYS[value.getDay()]}, ${date} ${MONTHS[month - 1]} ${year}`;
+}
+
+/** Compact day label for chart axes, e.g. `12 May`. */
+export function formatDayKeyShort(day: string): string {
+  const [, month, date] = day.split("-").map(Number);
+  return `${date} ${MONTHS[month - 1]}`;
+}
+
+/** 12-hour clock label for an hour-of-day (0–23), e.g. `3 PM`. */
+export function formatHour(hour: number): string {
+  const period = hour < 12 ? "AM" : "PM";
+  const value = hour % 12 === 0 ? 12 : hour % 12;
+  return `${value} ${period}`;
+}
+
 export function formatTime(timestamp: number): string {
   const date = new Date(timestamp);
   return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });

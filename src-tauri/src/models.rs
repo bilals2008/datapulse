@@ -129,3 +129,31 @@ pub struct AppMeta {
     pub db_path: String,
     pub platform: String,
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DailyTotal {
+    pub day: String,
+    pub rx: u64,
+    pub tx: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BusiestDay {
+    pub day: String,
+    pub bytes: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Recap {
+    pub this_week: u64,
+    pub last_week: u64,
+    pub delta_percent: f64,
+    pub avg_daily: u64,
+    pub busiest_day: Option<BusiestDay>,
+    /// Local hour of day (0–23) with the most transfer this week.
+    pub busiest_hour: Option<u32>,
+    pub top_interface: Option<InterfaceTotal>,
+}

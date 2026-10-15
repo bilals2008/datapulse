@@ -251,6 +251,62 @@ pub fn hourly_by_iface(
     Ok(out)
 }
 
+pub fn daily_totals(
+    conn: &Connection,
+    since: i64,
+    tz_offset: i32,
+) -> Result<Vec<(i64, u64, u64)>, AppError> {
+    let mut stmt = conn.prepare(
+        "SELECT (ts_min + ?1) - ((ts_min + ?1) % 86400) - ?1 AS d,
+                COALESCE(SUM(rx), 0), COALESCE(SUM(tx), 0)
+         FROM usage_minute
+         WHERE ts_min >= ?2
+         GROUP BY d
+         ORDER BY d",
+    )?;
+    let rows = stmt.query_map(params![tz_offset as i64, since], |row| {
+        Ok((
+            row.get::<_, i64>(0)?,
+            row.get::<_, i64>(1)?.max(0) as u64,
+            row.get::<_, i64>(2)?.max(0) as u64,
+        ))
+    })?;
+
+    let mut out = Vec::new();
+    for row in rows {
+        out.push(row?);
+    }
+    Ok(out)
+}
+
+/// Total transfer per local hour-of-day (0–23), collapsed across the span.
+pub fn hourly_totals(
+    conn: &Connection,
+    since: i64,
+    tz_offset: i32,
+) -> Result<Vec<(u32, u64)>, AppError> {
+    let mut stmt = conn.prepare(
+        "SELECT ((ts_min + ?1) % 86400) / 3600 AS hod,
+                COALESCE(SUM(rx + tx), 0)
+         FROM usage_minute
+         WHERE ts_min >= ?2
+         GROUP BY hod
+         ORDER BY hod",
+    )?;
+    let rows = stmt.query_map(params![tz_offset as i64, since], |row| {
+        Ok((
+            row.get::<_, i64>(0)?.clamp(0, 23) as u32,
+            row.get::<_, i64>(1)?.max(0) as u64,
+        ))
+    })?;
+
+    let mut out = Vec::new();
+    for row in rows {
+        out.push(row?);
+    }
+    Ok(out)
+}
+
 pub fn daily_by_day(
     conn: &Connection,
     since: i64,

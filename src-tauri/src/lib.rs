@@ -204,6 +204,8 @@ pub fn run() {
             commands::dismiss_anomaly,
             commands::dismiss_all_anomalies,
             commands::get_timeline,
+            commands::get_daily_activity,
+            commands::get_recap,
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application");
