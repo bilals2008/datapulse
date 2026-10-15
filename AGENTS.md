@@ -81,9 +81,10 @@ scripts/         bump-version.mjs (keeps every version field in sync)
 - Generate the signing key once: `npm run tauri signer generate -w ~/.tauri/datapulse.key`.
   Put the private key in the repo secrets `TAURI_SIGNING_PRIVATE_KEY` and
   `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`; keep the public key in `tauri.conf.json`.
-- Cut a release from **Actions → Release → Run workflow** (pick `patch`/`minor`/`major`,
-  or `explicit` + a version). It bumps every version file, tags `vX.Y.Z`, builds all
-  platforms and uploads a **draft** GitHub release. Publish the draft to ship the update.
+- Cut a release by pushing to `main`: the Release workflow auto-bumps the patch
+  version, tags `vX.Y.Z`, builds all platforms and uploads a **draft** GitHub
+  release. Publish the draft to ship the update. For a `minor`/`major`/exact
+  version, run **Actions → Release → Run workflow** manually.
 - Replace `YOUR_GITHUB_USER` in `src-tauri/tauri.conf.json` and
   `src/components/update-card.tsx` with the real GitHub owner once the repo is public.
 - `ci.yml` runs typecheck + `vite build` + `cargo check` on PRs and `main`.

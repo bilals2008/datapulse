@@ -1,15 +1,20 @@
 name: Release
 
-# Cut a release from the Actions tab -> "Run release" (pick patch/minor/major,
-# or "explicit" plus an exact version). The version job bumps the version in
-# package.json, src-tauri/tauri.conf.json, src-tauri/Cargo.toml and Cargo.lock,
-# commits it, and pushes a vX.Y.Z tag. The build matrix then packages the app
-# on every platform and uploads the bundles plus latest.json to a DRAFT GitHub
-# release. Review the draft and publish it when ready.
+# Releases are automatic and always start as a DRAFT — you never need to open
+# the Actions tab and click "Run workflow".
+#
+# Every push to `main` (that is not itself a release commit) bumps the patch
+# version in package.json, src-tauri/tauri.conf.json, src-tauri/Cargo.toml and
+# Cargo.lock, commits it, tags vX.Y.Z, then builds every platform and uploads
+# the bundles + latest.json to a DRAFT GitHub release. Open the draft, review
+# it, and click "Publish release" to ship.
 #
 # Publishing the draft is what makes the update live: the in-app updater reads
 # releases/latest/download/latest.json, which only resolves to published
 # (non-draft, non-prerelease) releases.
+#
+# Need a minor/major bump or an exact version instead? Run the workflow
+# manually (Actions -> Release -> Run workflow) and pick the bump type.
 #
 # Required repository secrets:
 #   TAURI_SIGNING_PRIVATE_KEY           (contents of ~/.tauri/datapulse.key)
@@ -19,6 +24,8 @@ name: Release
 #   APPLE_CERTIFICATE, APPLE_CERTIFICATE_PASSWORD, APPLE_SIGNING_IDENTITY,
 #   APPLE_ID, APPLE_PASSWORD, APPLE_TEAM_ID
 on:
+  push:
+    branches: [main]
   workflow_dispatch:
     inputs:
       bump:
@@ -35,26 +42,26 @@ on:
         description: "Exact version, e.g. 1.0.0 (only used when bump = explicit)"
         required: false
         type: string
-  push:
-    tags:
-      - "v*"
 
 permissions:
   contents: write
 
+concurrency:
+  group: release
+  cancel-in-progress: false
+
 jobs:
   version:
-    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     outputs:
-      tag: ${{ steps.bump.outputs.tag }}
+      release: ${{ steps.bump.outputs.release }}
       ref: ${{ steps.bump.outputs.ref }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 24
 
@@ -71,6 +78,22 @@ jobs:
         run: |
           set -euo pipefail
 
+          # Never release on top of our own release commit — that would loop.
+          LAST=$(git log -1 --pretty=%s)
+          if [[ "$LAST" == "chore: release v"* ]]; then
+            echo "release=false" >> "$GITHUB_OUTPUT"
+            echo "Head commit is a release commit — nothing to release."
+            exit 0
+          fi
+
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            BUMP="${BUMP:-patch}"
+            VERSION="${VERSION:-}"
+          else
+            BUMP="patch"
+            VERSION=""
+          fi
+
           if [ "$BUMP" = "explicit" ]; then
             if [ -z "$VERSION" ]; then
               echo "bump = explicit requires the 'version' input" >&2
@@ -81,19 +104,32 @@ jobs:
             NEXT=$(node scripts/bump-version.mjs "$BUMP")
           fi
 
-          echo "version=$NEXT" >> "$GITHUB_OUTPUT"
-          echo "tag=v$NEXT" >> "$GITHUB_OUTPUT"
-
           git add package.json src-tauri/tauri.conf.json src-tauri/Cargo.toml src-tauri/Cargo.lock
-          git commit -m "chore: release v$NEXT"
-          git push origin "HEAD:${{ github.ref_name }}"
+          git commit -m "chore: release v$NEXT [skip ci]"
+
+          for attempt in 1 2 3; do
+            if git push origin "HEAD:${GITHUB_REF_NAME}"; then
+              break
+            fi
+            if [ "$attempt" -eq 3 ]; then
+              echo "branch push failed after 3 attempts" >&2
+              exit 1
+            fi
+            echo "push rejected (attempt $attempt/3) — rebasing and retrying…"
+            git pull --rebase origin "${GITHUB_REF_NAME}"
+          done
+
+          git tag "v$NEXT"
           git push origin "v$NEXT"
 
+          echo "release=true" >> "$GITHUB_OUTPUT"
+          echo "tag=v$NEXT" >> "$GITHUB_OUTPUT"
           echo "ref=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          echo "Releasing v$NEXT"
 
   release:
-    needs: [version]
-    if: always() && (github.event_name == 'push' || needs.version.result == 'success')
+    needs: version
+    if: needs.version.outputs.release == 'true'
     strategy:
       fail-fast: false
       matrix:
@@ -108,9 +144,9 @@ jobs:
             args: ""
     runs-on: ${{ matrix.platform }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
-          ref: ${{ needs.version.outputs.ref || github.sha }}
+          ref: ${{ needs.version.outputs.ref }}
 
       - name: Install Linux dependencies
         if: matrix.platform == 'ubuntu-22.04'
@@ -118,7 +154,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 24
           cache: npm
@@ -134,7 +170,7 @@ jobs:
       - run: npm ci
 
       - name: Build and publish draft release
-        uses: tauri-apps/tauri-action@v0
+        uses: tauri-apps/tauri-action@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
