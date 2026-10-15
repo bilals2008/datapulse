@@ -1,17 +1,14 @@
 import {
-  Activity,
   ArrowDown,
   ArrowUp,
   ChartColumn,
   Gauge,
   Network,
-  PanelLeftClose,
-  PanelLeftOpen,
   Settings as SettingsIcon,
   type LucideIcon,
 } from "lucide-react";
+import { useEffect, useState } from "react";
 
-import { Button } from "@/components/ui/button";
 import {
   Tooltip,
   TooltipContent,
@@ -34,18 +31,24 @@ type AppSidebarProps = {
   view: ViewId;
   onNavigate: (view: ViewId) => void;
   collapsed: boolean;
-  onToggle: () => void;
 };
 
-export function AppSidebar({
-  view,
-  onNavigate,
-  collapsed,
-  onToggle,
-}: AppSidebarProps) {
+export function AppSidebar({ view, onNavigate, collapsed }: AppSidebarProps) {
   const { latest } = useLiveStats();
   const sessionRx = formatBytes(latest?.sessionRx ?? 0).replace(" ", "");
   const sessionTx = formatBytes(latest?.sessionTx ?? 0).replace(" ", "");
+
+  const [railReady, setRailReady] = useState(false);
+
+  useEffect(() => {
+    if (!collapsed) {
+      setRailReady(false);
+      return;
+    }
+
+    const id = window.setTimeout(() => setRailReady(true), 260);
+    return () => window.clearTimeout(id);
+  }, [collapsed]);
 
   return (
     <aside
@@ -54,54 +57,12 @@ export function AppSidebar({
         collapsed ? "w-14" : "w-60",
       )}
     >
-      <div
-        className={cn(
-          "flex h-14 items-center",
-          collapsed ? "justify-center px-2" : "gap-2.5 px-3",
-        )}
-      >
-        {collapsed ? null : (
-          <>
-            <span className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-              <Activity className="size-4" />
-            </span>
-            <span className="flex min-w-0 flex-col leading-tight">
-              <span className="font-heading text-sm font-semibold tracking-tight">
-                DataPulse
-              </span>
-              <span className="text-[10px] tracking-[0.14em] text-muted-foreground uppercase">
-                Network monitor
-              </span>
-            </span>
-          </>
-        )}
-
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              onClick={onToggle}
-              aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-              aria-expanded={!collapsed}
-              className={cn(!collapsed && "ml-auto")}
-            >
-              {collapsed ? <PanelLeftOpen /> : <PanelLeftClose />}
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent side="right" className="flex items-center gap-2">
-            {collapsed ? "Expand sidebar" : "Collapse sidebar"}
-            <span className="text-muted-foreground">Ctrl B</span>
-          </TooltipContent>
-        </Tooltip>
-      </div>
-
-      <nav className="flex flex-col gap-0.5 px-2 py-1.5">
+      <nav className="flex flex-col gap-0.5 px-2 py-2">
         {NAV.map((item) => {
           const active = view === item.id;
 
           return (
-            <Tooltip key={item.id}>
+            <Tooltip key={`${item.id}-${collapsed ? "rail" : "full"}`}>
               <TooltipTrigger asChild>
                 <button
                   type="button"
@@ -120,7 +81,7 @@ export function AppSidebar({
                   {collapsed ? null : item.label}
                 </button>
               </TooltipTrigger>
-              {collapsed ? (
+              {collapsed && railReady ? (
                 <TooltipContent side="right">{item.label}</TooltipContent>
               ) : null}
             </Tooltip>

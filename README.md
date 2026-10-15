@@ -22,8 +22,9 @@ Built with **Tauri 2** (Rust backend) and **React + TypeScript** (frontend).
   you at 80% and 100%.
 - **Wi-Fi details** — SSID, signal strength, radio type, channel, and negotiated
   link rates.
-- **Native desktop feel** — light/dark/system theme, warm low-contrast palette,
-  custom scrollbars, keyboard shortcuts (`Ctrl/Cmd + 1..4`).
+- **Native desktop feel** — frameless window with a custom titlebar, light/dark/system
+  theme, warm low-contrast palette, and keyboard shortcuts (`Ctrl/Cmd + 1..4`,
+  `Ctrl/Cmd + B` for the sidebar).
 - **Local-first** — every sample is stored in a local SQLite database. Nothing is
   ever sent anywhere.
 
@@ -80,6 +81,13 @@ npm run tauri build    # installer/bundle in src-tauri/target/release
 npx tsc --noEmit       # typecheck (no lint script configured)
 npm run build          # tsc + vite production build
 cargo check --manifest-path src-tauri/Cargo.toml
+```
+
+App icons (Windows `.ico`, macOS `.icns`, PNGs) are generated from the single logo
+source at `public/logo.png`:
+
+```bash
+npm run tauri icon public/logo.png
 ```
 
 ## How it works

@@ -11,6 +11,7 @@ usage. Windows-first (Wi-Fi details come from `netsh`).
 - `npx tsc --noEmit` — typecheck. There is no lint script.
 - `npm run build` — `tsc && vite build`.
 - `cargo check --manifest-path src-tauri/Cargo.toml` — backend compile check.
+- `npm run tauri icon public/logo.png` — regenerate the app icon set from the logo.
 - `npm run tauri build` — production desktop bundle.
 
 ## Stack
@@ -45,8 +46,14 @@ src/index.css    single source of truth for design tokens
 - **Palette:** OKLCH "warm sand + sage + copper". Custom tokens: `--download`,
   `--upload`, `--success`, `--warning`. Add new colors to `src/index.css`, not inline.
 - **Data numerals** use the `text-data` utility (`tabular-nums`).
-- **Desktop feel, not web:** `user-select: none` globally (opt in with
-  `data-selectable="true"`), thin scrollbars, native titlebar, no browser affordances.
+- **Desktop feel, not web:** frameless window (`decorations: false`) with the
+  custom `src/components/titlebar.tsx` (drag region + window controls),
+  `user-select: none` globally (opt in with `data-selectable="true"`), thin
+  scrollbars, no browser affordances.
+- **Branding:** `public/logo.png` is the single logo source — used by the
+  titlebar, the favicon, and `npm run tauri icon` for the app icon set.
+- **Toasts:** the frameless window has no native chrome, so new window
+  interactions need an explicit capability in `src-tauri/capabilities/default.json`.
 - **Rust ↔ TS contract:** serde `camelCase`; command names are `snake_case`. Keep
   `src/lib/ipc.ts` types in sync with `src-tauri/src/models.rs`. The frontend calls
   the backend only through `api` in `src/lib/ipc.ts`.

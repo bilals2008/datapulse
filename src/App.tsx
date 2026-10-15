@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from "react";
 
 import { AppSidebar, type ViewId } from "@/components/app-sidebar";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { TitleBar } from "@/components/titlebar";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { LiveStatsProvider, useLiveStats } from "@/hooks/use-live-stats";
@@ -98,39 +99,42 @@ function App() {
   return (
     <SettingsProvider>
       <LiveStatsProvider>
-        <TooltipProvider>
-          <div className="flex h-full">
-            <AppSidebar
-              view={view}
-              onNavigate={setView}
-              collapsed={collapsed}
-              onToggle={toggleSidebar}
-            />
+        <TooltipProvider delayDuration={400}>
+          <div className="flex h-full flex-col">
+            <TitleBar collapsed={collapsed} onToggleSidebar={toggleSidebar} />
 
-            <div className="flex min-w-0 flex-1 flex-col">
-              <header className="flex h-14 shrink-0 items-center justify-between border-b border-border/70 px-6">
-                <div className="flex flex-col">
-                  <h1 className="font-heading text-sm font-semibold">
-                    {TITLES[view].title}
-                  </h1>
-                  <p className="text-xs text-muted-foreground">
-                    {TITLES[view].subtitle}
-                  </p>
-                </div>
-                <div className="flex items-center gap-2">
-                  <HeaderStats />
-                  <ThemeToggle />
-                </div>
-              </header>
+            <div className="flex min-h-0 flex-1">
+              <AppSidebar
+                view={view}
+                onNavigate={setView}
+                collapsed={collapsed}
+              />
 
-              <main className="min-h-0 flex-1 overflow-y-auto px-6 py-5">
-                {view === "dashboard" ? (
-                  <DashboardView onOpenSettings={() => setView("settings")} />
-                ) : null}
-                {view === "usage" ? <UsageView /> : null}
-                {view === "interfaces" ? <InterfacesView /> : null}
-                {view === "settings" ? <SettingsView /> : null}
-              </main>
+              <div className="flex min-w-0 flex-1 flex-col">
+                <header className="flex h-14 shrink-0 items-center justify-between border-b border-border/70 px-6">
+                  <div className="flex flex-col">
+                    <h1 className="font-heading text-sm font-semibold">
+                      {TITLES[view].title}
+                    </h1>
+                    <p className="text-xs text-muted-foreground">
+                      {TITLES[view].subtitle}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <HeaderStats />
+                    <ThemeToggle />
+                  </div>
+                </header>
+
+                <main className="min-h-0 flex-1 overflow-y-auto px-6 py-5">
+                  {view === "dashboard" ? (
+                    <DashboardView onOpenSettings={() => setView("settings")} />
+                  ) : null}
+                  {view === "usage" ? <UsageView /> : null}
+                  {view === "interfaces" ? <InterfacesView /> : null}
+                  {view === "settings" ? <SettingsView /> : null}
+                </main>
+              </div>
             </div>
           </div>
 
