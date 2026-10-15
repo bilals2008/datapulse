@@ -48,6 +48,47 @@ export type QuotaStatus = {
   daysElapsed: number;
   daysTotal: number;
   resetDay: number;
+  avgDaily: number;
+  dailyBudget: number;
+  forecastBytes: number;
+  daysToLimit: number;
+  overBudget: boolean;
+  burn: ForecastPoint[];
+};
+
+export type ForecastPoint = {
+  ts: number;
+  actual: number;
+  projected: number;
+  budget: number;
+};
+
+export type Anomaly = {
+  id: number;
+  kind: "spike" | "night";
+  ts: number;
+  iface: string;
+  bytes: number;
+  baseline: number;
+  ratio: number;
+  severity: "low" | "medium" | "high";
+  message: string;
+};
+
+export type TimelineBucket = {
+  ts: number;
+  rx: number;
+  tx: number;
+};
+
+export type Timeline = {
+  start: number;
+  end: number;
+  resolution: number;
+  rx: number;
+  tx: number;
+  buckets: TimelineBucket[];
+  interfaces: InterfaceTotal[];
 };
 
 export type WifiInfo = {
@@ -84,6 +125,11 @@ export const api = {
   interfaceTotals: (days: number) =>
     invoke<InterfaceTotal[]>("get_interface_totals", { days }),
   quotaStatus: () => invoke<QuotaStatus>("get_quota_status"),
+  anomalies: (limit = 50) => invoke<Anomaly[]>("get_anomalies", { limit }),
+  dismissAnomaly: (id: number) => invoke<void>("dismiss_anomaly", { id }),
+  dismissAllAnomalies: () => invoke<void>("dismiss_all_anomalies"),
+  timeline: (start: number, end: number) =>
+    invoke<Timeline>("get_timeline", { start, end }),
   wifiInfo: () => invoke<WifiInfo | null>("get_wifi_info"),
   appMeta: () => invoke<AppMeta>("get_app_meta"),
   clearHistory: () => invoke<void>("clear_history"),

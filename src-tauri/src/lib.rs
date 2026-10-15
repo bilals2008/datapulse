@@ -1,11 +1,13 @@
 use std::sync::{Arc, Mutex};
+use std::time::{Duration, Instant};
 
 use tauri::{
     menu::{Menu, MenuItem},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
-    Manager, Window, WindowEvent,
+    Manager, PhysicalPosition, WebviewWindow, Window, WindowEvent,
 };
 
+mod analytics;
 mod collector;
 mod commands;
 mod db;
@@ -121,6 +123,10 @@ pub fn run() {
             commands::get_wifi_info,
             commands::get_app_meta,
             commands::clear_history,
+            commands::get_anomalies,
+            commands::dismiss_anomaly,
+            commands::dismiss_all_anomalies,
+            commands::get_timeline,
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application");

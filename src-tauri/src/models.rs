@@ -50,6 +50,15 @@ pub struct InterfaceTotal {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct ForecastPoint {
+    pub ts: i64,
+    pub actual: u64,
+    pub projected: u64,
+    pub budget: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct QuotaStatus {
     pub enabled: bool,
     pub limit_bytes: u64,
@@ -60,6 +69,12 @@ pub struct QuotaStatus {
     pub days_elapsed: f64,
     pub days_total: f64,
     pub reset_day: u32,
+    pub avg_daily: u64,
+    pub daily_budget: u64,
+    pub forecast_bytes: u64,
+    pub days_to_limit: f64,
+    pub over_budget: bool,
+    pub burn: Vec<ForecastPoint>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -71,6 +86,40 @@ pub struct WifiInfo {
     pub channel: String,
     pub rx_mbps: f64,
     pub tx_mbps: f64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Anomaly {
+    pub id: i64,
+    pub kind: String,
+    pub ts: i64,
+    pub iface: String,
+    pub bytes: u64,
+    pub baseline: u64,
+    pub ratio: f64,
+    pub severity: String,
+    pub message: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TimelineBucket {
+    pub ts: i64,
+    pub rx: u64,
+    pub tx: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Timeline {
+    pub start: i64,
+    pub end: i64,
+    pub resolution: i64,
+    pub rx: u64,
+    pub tx: u64,
+    pub buckets: Vec<TimelineBucket>,
+    pub interfaces: Vec<InterfaceTotal>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

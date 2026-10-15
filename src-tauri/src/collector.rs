@@ -6,12 +6,15 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use sysinfo::Networks;
 use tauri::{AppHandle, Emitter};
 
+use crate::analytics::{self, HourRow};
 use crate::models::{InterfaceSnapshot, TickPayload};
 use crate::state::AppState;
 use crate::{db, net, wifi};
 
 const FLUSH_INTERVAL: Duration = Duration::from_secs(5);
 const WIFI_INTERVAL: Duration = Duration::from_secs(15);
+const ANOMALY_INTERVAL: Duration = Duration::from_secs(300);
+const ANOMALY_LOOKBACK: i64 = 30 * 86_400;
 const MAX_DELTA_RATE: f64 = 1_000_000_000.0;
 
 fn now_secs() -> i64 {
@@ -33,6 +36,9 @@ fn run_loop(app: AppHandle, state: Arc<AppState>) {
     let mut last_flush = Instant::now();
     let mut last_wifi = Instant::now()
         .checked_sub(WIFI_INTERVAL)
+        .unwrap_or_else(Instant::now);
+    let mut last_anomaly = Instant::now()
+        .checked_sub(ANOMALY_INTERVAL)
         .unwrap_or_else(Instant::now);
 
     loop {
@@ -119,6 +125,11 @@ fn run_loop(app: AppHandle, state: Arc<AppState>) {
             last_flush = Instant::now();
         }
 
+        if last_anomaly.elapsed() >= ANOMALY_INTERVAL {
+            scan_anomalies(&app, &state);
+            last_anomaly = Instant::now();
+        }
+
         thread::sleep(tick);
     }
 }
@@ -141,6 +152,35 @@ pub fn flush(state: &Arc<AppState>) {
 
     for (iface, (rx, tx)) in totals {
         let _ = db::upsert_cumulative(&conn, &iface, rx, tx, ts);
+    }
+}
+
+fn scan_anomalies(app: &AppHandle, state: &Arc<AppState>) {
+    let now = now_secs();
+    let since = now - ANOMALY_LOOKBACK;
+    let tz = analytics::local_offset_secs();
+
+    let rows = {
+        let conn = state.db.lock().unwrap();
+        let _ = db::prune_anomalies(&conn, since);
+        db::hourly_by_iface(&conn, since, tz).unwrap_or_default()
+    };
+
+    let hours: Vec<HourRow> = rows
+        .into_iter()
+        .map(|(ts, iface, bytes)| HourRow { ts, iface, bytes })
+        .collect();
+
+    let detected = analytics::detect_anomalies(&hours, tz, now);
+    if detected.is_empty() {
+        return;
+    }
+
+    let conn = state.db.lock().unwrap();
+    for anomaly in detected {
+        if let Ok(true) = db::insert_anomaly(&conn, &anomaly, now) {
+            let _ = app.emit("pulse-anomaly", &anomaly);
+        }
     }
 }
 

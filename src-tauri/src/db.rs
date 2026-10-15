@@ -3,6 +3,7 @@ use std::collections::HashMap;
 use rusqlite::{params, Connection};
 
 use crate::error::AppError;
+use crate::models::Anomaly;
 use crate::state::Config;
 
 pub fn open(path: &std::path::Path) -> Result<Connection, AppError> {
@@ -27,7 +28,22 @@ pub fn open(path: &std::path::Path) -> Result<Connection, AppError> {
          CREATE TABLE IF NOT EXISTS settings (
             key   TEXT PRIMARY KEY,
             value TEXT NOT NULL
-         );",
+         );
+         CREATE TABLE IF NOT EXISTS anomalies (
+            id         INTEGER PRIMARY KEY AUTOINCREMENT,
+            ts         INTEGER NOT NULL UNIQUE,
+            kind       TEXT NOT NULL,
+            iface      TEXT NOT NULL DEFAULT '',
+            bytes      INTEGER NOT NULL DEFAULT 0,
+            baseline   INTEGER NOT NULL DEFAULT 0,
+            ratio      REAL NOT NULL DEFAULT 0,
+            severity   TEXT NOT NULL DEFAULT 'low',
+            message    TEXT NOT NULL DEFAULT '',
+            dismissed  INTEGER NOT NULL DEFAULT 0,
+            created_at INTEGER NOT NULL
+         );
+         CREATE INDEX IF NOT EXISTS idx_anomalies_active
+            ON anomalies (dismissed, ts DESC);",
     )?;
     Ok(conn)
 }
@@ -203,5 +219,183 @@ pub fn save_config(conn: &Connection, config: &Config) -> Result<(), AppError> {
             params![key, value],
         )?;
     }
+    Ok(())
+}
+
+pub fn hourly_by_iface(
+    conn: &Connection,
+    since: i64,
+    tz_offset: i32,
+) -> Result<Vec<(i64, String, u64)>, AppError> {
+    let mut stmt = conn.prepare(
+        "SELECT (ts_min + ?1) - ((ts_min + ?1) % 3600) - ?1 AS h,
+                iface,
+                COALESCE(SUM(rx + tx), 0)
+         FROM usage_minute
+         WHERE ts_min >= ?2
+         GROUP BY h, iface
+         ORDER BY h",
+    )?;
+    let rows = stmt.query_map(params![tz_offset as i64, since], |row| {
+        Ok((
+            row.get::<_, i64>(0)?,
+            row.get::<_, String>(1)?,
+            row.get::<_, i64>(2)?.max(0) as u64,
+        ))
+    })?;
+
+    let mut out = Vec::new();
+    for row in rows {
+        out.push(row?);
+    }
+    Ok(out)
+}
+
+pub fn daily_by_day(
+    conn: &Connection,
+    since: i64,
+    tz_offset: i32,
+) -> Result<Vec<(i64, u64)>, AppError> {
+    let mut stmt = conn.prepare(
+        "SELECT (ts_min + ?1) - ((ts_min + ?1) % 86400) - ?1 AS d,
+                COALESCE(SUM(rx + tx), 0)
+         FROM usage_minute
+         WHERE ts_min >= ?2
+         GROUP BY d
+         ORDER BY d",
+    )?;
+    let rows = stmt.query_map(params![tz_offset as i64, since], |row| {
+        Ok((row.get::<_, i64>(0)?, row.get::<_, i64>(1)?.max(0) as u64))
+    })?;
+
+    let mut out = Vec::new();
+    for row in rows {
+        out.push(row?);
+    }
+    Ok(out)
+}
+
+pub fn buckets(
+    conn: &Connection,
+    start: i64,
+    end: i64,
+    step: i64,
+    tz_offset: i32,
+) -> Result<Vec<(i64, u64, u64)>, AppError> {
+    let mut stmt = conn.prepare(
+        "SELECT (ts_min + ?1) - ((ts_min + ?1) % ?2) - ?1 AS b,
+                COALESCE(SUM(rx), 0), COALESCE(SUM(tx), 0)
+         FROM usage_minute
+         WHERE ts_min >= ?3 AND ts_min < ?4
+         GROUP BY b
+         ORDER BY b",
+    )?;
+    let rows = stmt.query_map(params![tz_offset as i64, step, start, end], |row| {
+        Ok((
+            row.get::<_, i64>(0)?,
+            row.get::<_, i64>(1)?.max(0) as u64,
+            row.get::<_, i64>(2)?.max(0) as u64,
+        ))
+    })?;
+
+    let mut out = Vec::new();
+    for row in rows {
+        out.push(row?);
+    }
+    Ok(out)
+}
+
+pub fn interface_totals_between(
+    conn: &Connection,
+    start: i64,
+    end: i64,
+) -> Result<Vec<(String, u64, u64)>, AppError> {
+    let mut stmt = conn.prepare(
+        "SELECT iface, COALESCE(SUM(rx), 0), COALESCE(SUM(tx), 0)
+         FROM usage_minute
+         WHERE ts_min >= ?1 AND ts_min < ?2
+         GROUP BY iface
+         ORDER BY SUM(rx) + SUM(tx) DESC",
+    )?;
+    let rows = stmt.query_map(params![start, end], |row| {
+        Ok((
+            row.get::<_, String>(0)?,
+            row.get::<_, i64>(1)?.max(0) as u64,
+            row.get::<_, i64>(2)?.max(0) as u64,
+        ))
+    })?;
+
+    let mut out = Vec::new();
+    for row in rows {
+        out.push(row?);
+    }
+    Ok(out)
+}
+
+pub fn insert_anomaly(
+    conn: &Connection,
+    anomaly: &Anomaly,
+    created_at: i64,
+) -> Result<bool, AppError> {
+    let changed = conn.execute(
+        "INSERT OR IGNORE INTO anomalies
+            (ts, kind, iface, bytes, baseline, ratio, severity, message, created_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+        params![
+            anomaly.ts,
+            anomaly.kind,
+            anomaly.iface,
+            anomaly.bytes as i64,
+            anomaly.baseline as i64,
+            anomaly.ratio,
+            anomaly.severity,
+            anomaly.message,
+            created_at,
+        ],
+    )?;
+    Ok(changed > 0)
+}
+
+pub fn list_anomalies(conn: &Connection, limit: u32) -> Result<Vec<Anomaly>, AppError> {
+    let mut stmt = conn.prepare(
+        "SELECT id, kind, ts, iface, bytes, baseline, ratio, severity, message
+         FROM anomalies
+         WHERE dismissed = 0
+         ORDER BY ts DESC, id DESC
+         LIMIT ?1",
+    )?;
+    let rows = stmt.query_map(params![limit.clamp(1, 500) as i64], |row| {
+        Ok(Anomaly {
+            id: row.get(0)?,
+            kind: row.get(1)?,
+            ts: row.get(2)?,
+            iface: row.get(3)?,
+            bytes: row.get::<_, i64>(4)?.max(0) as u64,
+            baseline: row.get::<_, i64>(5)?.max(0) as u64,
+            ratio: row.get(6)?,
+            severity: row.get(7)?,
+            message: row.get(8)?,
+        })
+    })?;
+
+    let mut out = Vec::new();
+    for row in rows {
+        out.push(row?);
+    }
+    Ok(out)
+}
+
+pub fn dismiss_anomaly(conn: &Connection, id: i64) -> Result<(), AppError> {
+    conn.execute("UPDATE anomalies SET dismissed = 1 WHERE id = ?1", params![id])?;
+    Ok(())
+}
+
+pub fn dismiss_all_anomalies(conn: &Connection) -> Result<(), AppError> {
+    conn.execute("UPDATE anomalies SET dismissed = 1 WHERE dismissed = 0", [])?;
+    Ok(())
+}
+
+pub fn prune_anomalies(conn: &Connection, before: i64) -> Result<(), AppError> {
+    conn.execute("DELETE FROM anomalies WHERE ts < ?1", params![before])?;
     Ok(())
 }

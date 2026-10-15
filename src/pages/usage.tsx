@@ -2,6 +2,7 @@ import { Cable, Wifi } from "lucide-react";
 import { useState } from "react";
 
 import { InfoField } from "@/components/info-field";
+import { TimeMachine } from "@/components/time-machine";
 import { UsageChart } from "@/components/usage-chart";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -164,6 +165,8 @@ export function UsageView() {
           )}
         </CardContent>
       </Card>
+
+      <TimeMachine />
     </div>
   );
 }

@@ -11,6 +11,7 @@ import { SettingsProvider } from "@/hooks/use-settings";
 import { formatRate, isActiveRate } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { DashboardView } from "@/pages/dashboard";
+import { InsightsView } from "@/pages/insights";
 import { InterfacesView } from "@/pages/interfaces";
 import { SettingsView } from "@/pages/settings";
 import { UsageView } from "@/pages/usage";
@@ -21,6 +22,10 @@ const TITLES: Record<ViewId, { title: string; subtitle: string }> = {
     subtitle: "Live throughput and today's usage",
   },
   usage: { title: "Usage", subtitle: "Historical transfer volume" },
+  insights: {
+    title: "Insights",
+    subtitle: "Anomalies and usage forecasts",
+  },
   interfaces: { title: "Interfaces", subtitle: "Network adapters on this device" },
   settings: { title: "Settings", subtitle: "Preferences and local data" },
 };
@@ -28,8 +33,9 @@ const TITLES: Record<ViewId, { title: string; subtitle: string }> = {
 const SHORTCUTS: Record<string, ViewId> = {
   "1": "dashboard",
   "2": "usage",
-  "3": "interfaces",
-  "4": "settings",
+  "3": "insights",
+  "4": "interfaces",
+  "5": "settings",
 };
 
 function HeaderStats() {
@@ -131,6 +137,9 @@ function App() {
                     <DashboardView onOpenSettings={() => setView("settings")} />
                   ) : null}
                   {view === "usage" ? <UsageView /> : null}
+                  {view === "insights" ? (
+                    <InsightsView onOpenSettings={() => setView("settings")} />
+                  ) : null}
                   {view === "interfaces" ? <InterfacesView /> : null}
                   {view === "settings" ? <SettingsView /> : null}
                 </main>

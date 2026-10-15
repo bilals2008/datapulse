@@ -1,15 +1,26 @@
 use chrono::{Datelike, Duration as ChronoDuration, Local, TimeZone, Timelike};
+use std::collections::HashMap;
 use std::sync::Arc;
 use tauri::State;
 
+use crate::analytics;
 use crate::error::AppError;
 use crate::models::{
-    AppMeta, InterfaceTotal, QuotaStatus, TickPayload, UsageBucket, UsageSeries,
+    Anomaly, AppMeta, InterfaceTotal, QuotaStatus, TickPayload, Timeline, TimelineBucket,
+    UsageBucket, UsageSeries,
 };
 use crate::state::{AppState, Config};
 use crate::{db, net};
 
 type Res<T> = Result<T, AppError>;
+
+const DAY_SECS: i64 = 86_400;
+const HOUR_SECS: i64 = 3_600;
+const MINUTE_SECS: i64 = 60;
+/// Longest time-machine span before dropping from per-minute to hourly buckets.
+const MINUTE_RESOLUTION_LIMIT: i64 = 36 * HOUR_SECS;
+/// Longest span kept at hourly resolution before falling back to daily buckets.
+const HOURLY_RESOLUTION_LIMIT: i64 = 60 * DAY_SECS;
 
 #[tauri::command]
 pub fn get_snapshot(state: State<'_, Arc<AppState>>) -> Res<TickPayload> {
@@ -43,7 +54,7 @@ pub fn set_settings(state: State<'_, Arc<AppState>>, config: Config) -> Res<Conf
 pub fn get_usage_series(state: State<'_, Arc<AppState>>, range: String) -> Res<UsageSeries> {
     let plan = plan_series(&range);
     let conn = state.db.lock().unwrap();
-    let map = db::series(&conn, plan.format, plan.since, tz_offset_secs())?;
+    let map = db::series(&conn, plan.format, plan.since, analytics::local_offset_secs())?;
 
     let mut buckets = Vec::with_capacity(plan.keys.len());
     let mut rx_total = 0_u64;
@@ -100,6 +111,12 @@ pub fn get_quota_status(state: State<'_, Arc<AppState>>) -> Res<QuotaStatus> {
             days_elapsed: 0.0,
             days_total: 0.0,
             reset_day,
+            avg_daily: 0,
+            daily_budget: 0,
+            forecast_bytes: 0,
+            days_to_limit: analytics::FAR_FUTURE_DAYS,
+            over_budget: false,
+            burn: Vec::new(),
         });
     }
 
@@ -113,28 +130,125 @@ pub fn get_quota_status(state: State<'_, Arc<AppState>>) -> Res<QuotaStatus> {
 
     let period_start = local_date_ts(start_year, start_month, reset_day);
     let period_end = local_date_ts(end_year, end_month, reset_day);
+    let today = local_midnight(0).timestamp();
+    let limit = (config.quota_gb * 1024.0 * 1024.0 * 1024.0) as u64;
+    let tz = analytics::local_offset_secs();
 
-    let (rx, tx) = {
+    let (used, daily) = {
         let conn = state.db.lock().unwrap();
-        db::usage_since(&conn, period_start)?
+        let (rx, tx) = db::usage_since(&conn, period_start)?;
+        let daily = db::daily_by_day(&conn, today - analytics::history_lookback_secs(), tz)?;
+        (rx + tx, daily)
     };
-    let used = rx + tx;
 
-    let days_elapsed = ((now.timestamp() - period_start) as f64 / 86_400.0).max(1.0 / 24.0);
-    let days_total = ((period_end - period_start) as f64 / 86_400.0).max(1.0);
-    let projected = (used as f64 * days_total / days_elapsed) as u64;
+    let projection = analytics::forecast(
+        &daily, period_start, period_end, today, used, limit, tz,
+    );
+
+    let days_elapsed = ((now.timestamp() - period_start) as f64 / DAY_SECS as f64).max(1.0 / 24.0);
+    let days_total = ((period_end - period_start) as f64 / DAY_SECS as f64).max(1.0);
 
     Ok(QuotaStatus {
         enabled: true,
-        limit_bytes: (config.quota_gb * 1024.0 * 1024.0 * 1024.0) as u64,
+        limit_bytes: limit,
         used_bytes: used,
-        projected_bytes: projected,
+        projected_bytes: projection.projected,
         period_start,
         period_end,
         days_elapsed,
         days_total,
         reset_day,
+        avg_daily: projection.avg_daily,
+        daily_budget: projection.daily_budget,
+        forecast_bytes: projection.projected,
+        days_to_limit: projection.days_to_limit,
+        over_budget: projection.over_budget,
+        burn: projection.burn,
     })
+}
+
+#[tauri::command]
+pub fn get_anomalies(state: State<'_, Arc<AppState>>, limit: u32) -> Res<Vec<Anomaly>> {
+    let conn = state.db.lock().unwrap();
+    db::list_anomalies(&conn, limit)
+}
+
+#[tauri::command]
+pub fn dismiss_anomaly(state: State<'_, Arc<AppState>>, id: i64) -> Res<()> {
+    let conn = state.db.lock().unwrap();
+    db::dismiss_anomaly(&conn, id)
+}
+
+#[tauri::command]
+pub fn dismiss_all_anomalies(state: State<'_, Arc<AppState>>) -> Res<()> {
+    let conn = state.db.lock().unwrap();
+    db::dismiss_all_anomalies(&conn)
+}
+
+#[tauri::command]
+pub fn get_timeline(state: State<'_, Arc<AppState>>, start: i64, end: i64) -> Res<Timeline> {
+    let tz = analytics::local_offset_secs();
+    let now = Local::now().timestamp();
+
+    let end = end.min(now + MINUTE_SECS).max(MINUTE_SECS);
+    let start = start.min(end - MINUTE_SECS).max(0);
+    let step = resolve_resolution(end - start);
+    let aligned_start = floor_to(start, step, tz);
+
+    let conn = state.db.lock().unwrap();
+    let rows = db::buckets(&conn, aligned_start, end + step, step, tz)?;
+    let interfaces = db::interface_totals_between(&conn, aligned_start, end)?;
+
+    let mut map: HashMap<i64, (u64, u64)> = rows
+        .into_iter()
+        .map(|(ts, rx, tx)| (ts, (rx, tx)))
+        .collect();
+
+    let mut buckets = Vec::new();
+    let mut rx_total = 0_u64;
+    let mut tx_total = 0_u64;
+    let mut cursor = aligned_start;
+
+    while cursor <= end {
+        let (rx, tx) = map.remove(&cursor).unwrap_or((0, 0));
+        rx_total += rx;
+        tx_total += tx;
+        buckets.push(TimelineBucket { ts: cursor, rx, tx });
+        cursor += step;
+    }
+
+    Ok(Timeline {
+        start: aligned_start,
+        end,
+        resolution: step,
+        rx: rx_total,
+        tx: tx_total,
+        buckets,
+        interfaces: interfaces
+            .into_iter()
+            .map(|(name, rx, tx)| InterfaceTotal {
+                is_wireless: net::is_wireless(&name),
+                name,
+                rx,
+                tx,
+            })
+            .collect(),
+    })
+}
+
+fn resolve_resolution(span: i64) -> i64 {
+    if span <= MINUTE_RESOLUTION_LIMIT {
+        MINUTE_SECS
+    } else if span <= HOURLY_RESOLUTION_LIMIT {
+        HOUR_SECS
+    } else {
+        DAY_SECS
+    }
+}
+
+fn floor_to(ts: i64, step: i64, tz_offset: i32) -> i64 {
+    let shifted = ts + tz_offset as i64;
+    shifted - shifted.rem_euclid(step) - tz_offset as i64
 }
 
 #[tauri::command]
@@ -236,10 +350,6 @@ fn monthly_plan(range: &str, months: i32) -> SeriesPlan {
         since: local_date_ts(first_year, first_month, 1),
         keys,
     }
-}
-
-fn tz_offset_secs() -> i32 {
-    Local::now().offset().local_minus_utc()
 }
 
 fn local_midnight(days_back: i64) -> chrono::DateTime<Local> {
