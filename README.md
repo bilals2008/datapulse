@@ -147,6 +147,10 @@ src/
 | Data cap | disabled | Monthly allowance in GB + reset day (1–28) |
 | Theme | System | Light / Dark / System |
 
+## Author
+
+Built by [**Muhammad Bilal Hassan**](https://github.com/bilals2008)
+
 ## License
 
 Released under the MIT License.

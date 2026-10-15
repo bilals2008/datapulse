@@ -1,5 +1,5 @@
 import { ArrowDown, ArrowUp } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import { AppSidebar, type ViewId } from "@/components/app-sidebar";
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -58,12 +58,32 @@ function HeaderStats() {
   );
 }
 
+const SIDEBAR_KEY = "sidebar";
+
 function App() {
   const [view, setView] = useState<ViewId>("dashboard");
+  const [collapsed, setCollapsed] = useState(
+    () => localStorage.getItem(SIDEBAR_KEY) === "collapsed",
+  );
+
+  const toggleSidebar = useCallback(() => {
+    setCollapsed((prev) => {
+      const next = !prev;
+      localStorage.setItem(SIDEBAR_KEY, next ? "collapsed" : "expanded");
+      return next;
+    });
+  }, []);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (!event.ctrlKey && !event.metaKey) return;
+
+      if (event.key.toLowerCase() === "b") {
+        event.preventDefault();
+        toggleSidebar();
+        return;
+      }
+
       const target = SHORTCUTS[event.key];
       if (target) {
         event.preventDefault();
@@ -73,14 +93,19 @@ function App() {
 
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, []);
+  }, [toggleSidebar]);
 
   return (
     <SettingsProvider>
       <LiveStatsProvider>
         <TooltipProvider>
           <div className="flex h-full">
-            <AppSidebar view={view} onNavigate={setView} />
+            <AppSidebar
+              view={view}
+              onNavigate={setView}
+              collapsed={collapsed}
+              onToggle={toggleSidebar}
+            />
 
             <div className="flex min-w-0 flex-1 flex-col">
               <header className="flex h-14 shrink-0 items-center justify-between border-b border-border/70 px-6">
