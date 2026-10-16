@@ -78,7 +78,12 @@ export function AnomalyFeed() {
           ) : null}
         </CardAction>
       </CardHeader>
-      <CardContent className="flex flex-col gap-2">
+      <CardContent
+        className={cn(
+          "flex flex-1 flex-col gap-2",
+          count > 0 && "max-h-96 overflow-y-auto",
+        )}
+      >
         {items === null ? (
           <>
             <Skeleton className="h-16 w-full" />
@@ -86,7 +91,7 @@ export function AnomalyFeed() {
             <Skeleton className="h-16 w-full" />
           </>
         ) : count === 0 ? (
-          <div className="flex flex-col items-center gap-2 py-10 text-center">
+          <div className="flex flex-1 flex-col items-center justify-center gap-2 text-center">
             <ShieldCheck className="size-8 text-success" />
             <p className="text-sm text-muted-foreground">
               Nothing unusual — your usage looks normal.
@@ -131,6 +136,21 @@ function AnomalyRow({
             <span>baseline {formatBytes(anomaly.baseline)}/h</span>
           ) : null}
         </div>
+        {anomaly.procs.length > 0 ? (
+          <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-muted-foreground">
+            <span>Busy then:</span>
+            {anomaly.procs.slice(0, 3).map((proc, index) => (
+              <span
+                key={`${proc.name}-${index}`}
+                className="flex items-center gap-1"
+                title={`${formatBytes(proc.diskWritten)} written to disk since it launched`}
+              >
+                <span className="max-w-40 truncate">{proc.name}</span>
+                <span className="text-data">{proc.cpu.toFixed(0)}%</span>
+              </span>
+            ))}
+          </p>
+        ) : null}
       </div>
 
       <Button
