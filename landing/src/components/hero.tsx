@@ -7,6 +7,14 @@ import { REPO } from "@/lib/links";
 
 const SCREENSHOT_SRC: string | undefined = "/hero.png";
 
+const ICONS = "https://cdn.jsdelivr.net/gh/glincker/thesvg@main/public/icons";
+
+const OSES = [
+  { name: "Windows", icon: `${ICONS}/windows/default.svg`, invert: false },
+  { name: "macOS", icon: `${ICONS}/apple/mono.svg`, invert: true },
+  { name: "Linux", icon: `${ICONS}/linux/mono.svg`, invert: true },
+];
+
 export function Hero() {
   return (
     <section className="relative isolate overflow-hidden">
@@ -21,7 +29,7 @@ export function Hero() {
           Open source · Local-first
         </Badge>
 
-        <h1 className="font-heading mt-7 text-4xl leading-[1.1] font-semibold tracking-tight text-balance sm:text-6xl">
+        <h1 className="font-heading mt-7 text-4xl leading-[1.1] font-normal tracking-tight text-balance sm:text-6xl">
           Every byte, in plain sight.
         </h1>
 
@@ -45,7 +53,7 @@ export function Hero() {
           >
             <a href={REPO} target="_blank" rel="noreferrer">
               <img
-                src="https://cdn.jsdelivr.net/gh/glincker/thesvg@main/public/icons/github/default.svg"
+                src={`${ICONS}/github/default.svg`}
                 alt=""
                 className="size-4 dark:invert"
               />
@@ -54,9 +62,18 @@ export function Hero() {
           </Button>
         </div>
 
-        <p className="mt-6 text-xs text-muted-foreground">
-          Windows · macOS · Linux · MIT licensed
-        </p>
+        <div className="mt-6 flex flex-wrap items-center justify-center gap-x-4 gap-y-2 text-xs text-muted-foreground">
+          {OSES.map((os) => (
+            <span key={os.name} className="flex items-center gap-1.5">
+              <img
+                src={os.icon}
+                alt=""
+                className={os.invert ? "size-3.5 dark:invert" : "size-3.5"}
+              />
+              {os.name}
+            </span>
+          ))}
+        </div>
 
         <ScreenshotPlaceholder
           src={SCREENSHOT_SRC}

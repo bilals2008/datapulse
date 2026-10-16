@@ -55,7 +55,7 @@ export function DownloadSection() {
                 <img
                   src={platform.icon}
                   alt=""
-                  className={`size-8${platform.invert ? " dark:invert" : ""}`}
+                  className={platform.invert ? "size-8 dark:invert" : "size-8"}
                 />
                 <h3 className="font-heading mt-4 text-base font-semibold tracking-tight">
                   {platform.name}
