@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [Unreleased]
+
+---
+
 ## [0.2.0] - October 16, 2026
 
 ### Added
@@ -40,6 +44,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Tray icon is tinted by cap pressure, with a tooltip showing the cap percentage and session total
 - Taskbar progress bar mirrors the allowance
+
+#### Wrapped
+
+- A Wrapped card on Settings, and on Overview once the year's last week starts, opens a dialog: a year recap of total moved, busiest day, peak hour, top link and active days
+- The recap renders to a 1080×1350 poster on a canvas and saves as a PNG into the Downloads folder
+- Year picker steps back through history; the poster keeps its own dark palette whatever theme the app is in
 
 ### Changed
 

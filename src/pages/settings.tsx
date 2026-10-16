@@ -6,6 +6,7 @@ import { disable, enable, isEnabled } from "@tauri-apps/plugin-autostart";
 
 import { InfoField } from "@/components/info-field";
 import { UpdateCard } from "@/components/update-card";
+import { WrappedCard } from "@/components/wrapped-card";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -433,6 +434,8 @@ export function SettingsView() {
           </code>
         </CardContent>
       </Card>
+
+      <WrappedCard />
 
       <Card>
         <CardHeader>

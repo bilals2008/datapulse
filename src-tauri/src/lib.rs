@@ -226,6 +226,8 @@ pub fn run() {
             commands::get_timeline,
             commands::get_daily_activity,
             commands::get_recap,
+            commands::get_wrapped,
+            commands::save_wrapped_png,
             commands::get_free_window,
             commands::get_speed_report,
             commands::run_speedtest,

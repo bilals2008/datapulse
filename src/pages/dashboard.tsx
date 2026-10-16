@@ -5,6 +5,7 @@ import { LiveSparkline } from "@/components/live-sparkline";
 import { NetworkCard } from "@/components/network-card";
 import { QuotaCard } from "@/components/quota-card";
 import { UsageChart } from "@/components/usage-chart";
+import { WrappedCard } from "@/components/wrapped-card";
 import { Badge } from "@/components/ui/badge";
 import {
   Card,
@@ -37,6 +38,8 @@ export function DashboardView({ onOpenSettings }: DashboardViewProps) {
   const { settings } = useSettings();
   const { data: today } = usePoll(() => api.usageSeries("today"), 20000);
   const { data: week } = usePoll(() => api.usageSeries("7d"), 60000);
+  const now = new Date();
+  const yearEnd = now.getMonth() === 11 && now.getDate() >= 25;
 
   const rx = latest?.rxRate ?? 0;
   const tx = latest?.txRate ?? 0;
@@ -165,6 +168,9 @@ export function DashboardView({ onOpenSettings }: DashboardViewProps) {
             <InfoField label="Upload rate" value={formatRate(tx)} />
           </CardContent>
         </Card>
+
+        {/* Kept off the dashboard until the last week of the year. */}
+        {yearEnd ? <WrappedCard /> : null}
       </div>
     </div>
   );

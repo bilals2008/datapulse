@@ -219,6 +219,23 @@ pub struct BusiestDay {
     pub bytes: u64,
 }
 
+/// Yearly highlight reel, rendered to a shareable image by the frontend.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Wrapped {
+    pub year: i32,
+    pub total: u64,
+    pub rx: u64,
+    pub tx: u64,
+    pub busiest_day: Option<BusiestDay>,
+    /// Local hour of day (0–23) with the most transfer across the year.
+    pub busiest_hour: Option<u32>,
+    pub top_interface: Option<InterfaceTotal>,
+    pub active_days: u32,
+    /// Average transfer on a day that saw traffic.
+    pub avg_daily: u64,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Recap {

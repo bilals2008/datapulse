@@ -39,7 +39,7 @@ src/hooks/       use-poll, use-settings (SettingsProvider), use-live-stats (Live
                  use-updater (UpdaterProvider + auto-check on startup)
 src/components/  app-sidebar, quota-card, network-card, usage-chart, live-sparkline,
                  free-window-card, speed-card, update-card, info-field, theme-toggle,
-                 ui/* (shadcn)
+                 wrapped-card + wrapped-dialog, ui/* (shadcn)
 src/pages/       dashboard, usage, insights, interfaces, settings
 src/index.css    single source of truth for design tokens
 scripts/         bump-version.mjs (keeps every version field in sync)
@@ -78,7 +78,11 @@ scripts/         bump-version.mjs (keeps every version field in sync)
 - The hourly speed test (`speed.rs`) is opt-in and pulls ~2 MB per run. The LAN
   dashboard (`lan.rs`) is opt-in, binds the machine's LAN address, and needs the
   token in the URL path. Both are off by default.
-- Navigation is state-based (`ViewId`), keyboard shortcuts `Ctrl/Cmd + 1..4`.
+- Navigation is state-based (`ViewId`), keyboard shortcuts `Ctrl/Cmd + 1..5`.
+- Wrapped is a card on Settings, and on Overview only in the last week of the
+  year, not a view: it opens a dialog that draws the yearly recap on a canvas from
+  the fixed `--wrapped-*` poster palette in `src/index.css` and saves it through
+  `save_wrapped_png` (Downloads folder); the webview cannot save files itself.
 
 ## Releases & updates
 

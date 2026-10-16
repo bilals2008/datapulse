@@ -101,6 +101,17 @@
     --sidebar-accent-foreground: oklch(0.330 0.046 158);
     --sidebar-border: oklch(0.890 0.014 82);
     --sidebar-ring: oklch(0.428 0.068 158);
+
+    /* Wrapped poster: a fixed dark palette so the exported card looks the same
+       whatever theme the app is in. */
+    --wrapped-bg: oklch(0.168 0.015 74);
+    --wrapped-bg-soft: oklch(0.238 0.019 72);
+    --wrapped-ink: oklch(0.970 0.010 90);
+    --wrapped-muted: oklch(0.700 0.018 80);
+    --wrapped-year: oklch(0.268 0.018 74);
+    --wrapped-copper: oklch(0.792 0.132 58);
+    --wrapped-sky: oklch(0.762 0.104 205);
+    --wrapped-sage: oklch(0.778 0.106 158);
 }
 
 .dark {

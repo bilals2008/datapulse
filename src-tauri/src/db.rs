@@ -603,3 +603,28 @@ pub fn average_hourly(
     }
     Ok(out)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn buckets_never_leave_the_window() {
+        let conn = Connection::open_in_memory().unwrap();
+        conn.execute_batch(
+            "CREATE TABLE usage_minute (
+                ts_min INTEGER NOT NULL, iface TEXT NOT NULL,
+                rx INTEGER NOT NULL DEFAULT 0, tx INTEGER NOT NULL DEFAULT 0,
+                PRIMARY KEY (ts_min, iface)
+             );",
+        )
+        .unwrap();
+
+        insert_usage(&conn, 1_700_000_000, "eth", 10, 5).unwrap();
+        insert_usage(&conn, 1_704_000_000, "eth", 999, 999).unwrap();
+
+        let rows = buckets(&conn, 1_699_000_000, 1_701_000_000, 86_400, 0).unwrap();
+        let total: u64 = rows.iter().map(|(_, rx, tx)| rx + tx).sum();
+        assert_eq!(total, 15);
+    }
+}

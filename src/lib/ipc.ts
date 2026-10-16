@@ -163,6 +163,18 @@ export type Recap = {
   topInterface: InterfaceTotal | null;
 };
 
+export type Wrapped = {
+  year: number;
+  total: number;
+  rx: number;
+  tx: number;
+  busiestDay: BusiestDay | null;
+  busiestHour: number | null;
+  topInterface: InterfaceTotal | null;
+  activeDays: number;
+  avgDaily: number;
+};
+
 export type AppSettings = {
   refreshMs: number;
   quotaGb: number;
@@ -195,6 +207,9 @@ export const api = {
   dailyActivity: (days: number) =>
     invoke<DailyTotal[]>("get_daily_activity", { days }),
   recap: () => invoke<Recap>("get_recap"),
+  wrapped: (year: number) => invoke<Wrapped>("get_wrapped", { year }),
+  saveWrappedPng: (year: number, data: number[]) =>
+    invoke<string>("save_wrapped_png", { year, data }),
   freeWindow: () => invoke<FreeWindow>("get_free_window"),
   speedReport: () => invoke<SpeedReport>("get_speed_report"),
   runSpeedtest: () => invoke<SpeedSample>("run_speedtest"),

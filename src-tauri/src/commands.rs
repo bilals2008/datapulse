@@ -1,7 +1,7 @@
 use chrono::{Datelike, Duration as ChronoDuration, Local, TimeZone};
 use std::collections::HashMap;
 use std::sync::Arc;
-use tauri::{AppHandle, State};
+use tauri::{AppHandle, Manager, State};
 
 use crate::analytics;
 use crate::error::AppError;
@@ -9,7 +9,7 @@ use crate::lan::LanServer;
 use crate::models::{
     Anomaly, AppMeta, BusiestDay, DailyTotal, FreeWindow, HourBytes, InterfaceTotal, LanInfo,
     QuotaStatus, Recap, SpeedHour, SpeedReport, SpeedSample, TickPayload, Timeline, TimelineBucket,
-    UsageBucket, UsageSeries,
+    UsageBucket, UsageSeries, Wrapped,
 };
 use crate::state::{AppState, Config};
 use crate::{db, net, speed};
@@ -381,6 +381,101 @@ pub fn get_recap(state: State<'_, Arc<AppState>>) -> Res<Recap> {
         busiest_hour,
         top_interface,
     })
+}
+
+#[tauri::command]
+pub fn get_wrapped(state: State<'_, Arc<AppState>>, year: i32) -> Res<Wrapped> {
+    let year = year.clamp(2000, 2100);
+    let start = local_date_ts(year, 1, 1);
+    let end = local_date_ts(year + 1, 1, 1);
+    let tz = analytics::local_offset_secs();
+
+    let (days, hours, top_interface) = {
+        let conn = state.db.lock().unwrap();
+        let top = db::interface_totals_between(&conn, start, end)?
+            .into_iter()
+            .next()
+            .map(|(name, rx, tx)| InterfaceTotal {
+                is_wireless: net::is_wireless(&name),
+                name,
+                rx,
+                tx,
+            });
+        (
+            db::buckets(&conn, start, end, DAY_SECS, tz)?,
+            db::buckets(&conn, start, end, HOUR_SECS, tz)?,
+            top,
+        )
+    };
+
+    let mut rx_total = 0_u64;
+    let mut tx_total = 0_u64;
+    let mut active_days = 0_u32;
+    let mut busiest_day: Option<BusiestDay> = None;
+
+    for (ts, rx, tx) in days {
+        let bytes = rx + tx;
+        rx_total += rx;
+        tx_total += tx;
+        if bytes > 0 {
+            active_days += 1;
+        }
+        if busiest_day.as_ref().map_or(bytes > 0, |day| bytes > day.bytes) {
+            busiest_day = Some(BusiestDay {
+                day: format_local_day(ts),
+                bytes,
+            });
+        }
+    }
+
+    let mut by_hour = [0_u64; 24];
+    for (ts, rx, tx) in hours {
+        let hour = ((ts + tz as i64).rem_euclid(DAY_SECS) / HOUR_SECS) as usize;
+        by_hour[hour] += rx + tx;
+    }
+
+    let total = rx_total + tx_total;
+    Ok(Wrapped {
+        year,
+        total,
+        rx: rx_total,
+        tx: tx_total,
+        busiest_day,
+        busiest_hour: by_hour
+            .iter()
+            .enumerate()
+            .max_by_key(|(_, bytes)| **bytes)
+            .filter(|(_, bytes)| **bytes > 0)
+            .map(|(hour, _)| hour as u32),
+        top_interface,
+        active_days,
+        avg_daily: total.checked_div(active_days as u64).unwrap_or(0),
+    })
+}
+
+/// Writes a rendered recap card into the user's Downloads folder, where a
+/// browser download would land. The webview cannot save files on its own.
+#[tauri::command]
+pub fn save_wrapped_png(app: AppHandle, year: i32, data: Vec<u8>) -> Res<String> {
+    const PNG_MAGIC: [u8; 8] = [0x89, b'P', b'N', b'G', 0x0d, 0x0a, 0x1a, 0x0a];
+    const MAX_BYTES: usize = 16 * 1024 * 1024;
+
+    if data.len() < PNG_MAGIC.len() || data[..PNG_MAGIC.len()] != PNG_MAGIC {
+        return Err(AppError::Io(std::io::Error::other("not a PNG image")));
+    }
+    if data.len() > MAX_BYTES {
+        return Err(AppError::Io(std::io::Error::other("image too large")));
+    }
+
+    let dir = app
+        .path()
+        .download_dir()
+        .map_err(|error| AppError::Io(std::io::Error::other(error)))?;
+    std::fs::create_dir_all(&dir)?;
+
+    let path = dir.join(format!("datapulse-wrapped-{}.png", year.clamp(2000, 2100)));
+    std::fs::write(&path, &data)?;
+    Ok(path.to_string_lossy().to_string())
 }
 
 #[tauri::command]
