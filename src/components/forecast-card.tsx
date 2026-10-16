@@ -59,7 +59,7 @@ export function ForecastCard({ onOpenSettings }: ForecastCardProps) {
             Set a monthly allowance to project where you will land.
           </CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="flex flex-1 items-center">
           <Button variant="outline" size="sm" onClick={onOpenSettings}>
             <Gauge data-icon="inline-start" />
             Set a data cap
