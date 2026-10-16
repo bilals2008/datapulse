@@ -17,8 +17,10 @@ import {
 } from "@/components/ui/card";
 import { useLiveStats } from "@/hooks/use-live-stats";
 import { usePoll } from "@/hooks/use-poll";
+import { useSettings } from "@/hooks/use-settings";
 import {
   formatBytes,
+  formatMoney,
   formatRate,
   isActiveRate,
   splitBytes,
@@ -32,6 +34,7 @@ type DashboardViewProps = {
 
 export function DashboardView({ onOpenSettings }: DashboardViewProps) {
   const { latest, history } = useLiveStats();
+  const { settings } = useSettings();
   const { data: today } = usePoll(() => api.usageSeries("today"), 20000);
   const { data: week } = usePoll(() => api.usageSeries("7d"), 60000);
 
@@ -43,6 +46,11 @@ export function DashboardView({ onOpenSettings }: DashboardViewProps) {
 
   const weekTotal = (week?.rx ?? 0) + (week?.tx ?? 0);
   const todayTotal = (today?.rx ?? 0) + (today?.tx ?? 0);
+  const todayCost = formatMoney(
+    todayTotal,
+    settings?.ratePerGb ?? 0,
+    settings?.currency ?? "",
+  );
 
   return (
     <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
@@ -102,7 +110,7 @@ export function DashboardView({ onOpenSettings }: DashboardViewProps) {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="xl:flex-1">
           <CardHeader>
             <CardTitle>Today</CardTitle>
             <CardDescription>Hourly transfer for the current day</CardDescription>
@@ -117,15 +125,16 @@ export function DashboardView({ onOpenSettings }: DashboardViewProps) {
               </span>
             </CardAction>
           </CardHeader>
-          <CardContent>
+          <CardContent className="min-h-0 flex-1">
             <UsageChart
               buckets={today?.buckets ?? []}
               range="today"
-              className="h-64"
+              className="h-64 xl:h-full"
             />
           </CardContent>
-          <CardFooter className="grid grid-cols-3 gap-4">
+          <CardFooter className={cn("grid gap-4", todayCost ? "grid-cols-2 sm:grid-cols-4" : "grid-cols-3")}>
             <InfoField label="Today" value={formatBytes(todayTotal)} />
+            {todayCost ? <InfoField label="Today's cost" value={todayCost} /> : null}
             <InfoField label="This week" value={formatBytes(weekTotal)} />
             <InfoField
               label="Daily average"

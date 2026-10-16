@@ -13,8 +13,10 @@ import {
 } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { usePoll } from "@/hooks/use-poll";
-import { formatBytes, formatDay } from "@/lib/format";
+import { useSettings } from "@/hooks/use-settings";
+import { formatBytes, formatDay, formatMoney } from "@/lib/format";
 import { api } from "@/lib/ipc";
+import { cn } from "@/lib/utils";
 
 type QuotaCardProps = {
   onOpenSettings: () => void;
@@ -22,6 +24,7 @@ type QuotaCardProps = {
 
 export function QuotaCard({ onOpenSettings }: QuotaCardProps) {
   const { data } = usePoll(api.quotaStatus, 15000);
+  const { settings } = useSettings();
   const fired = useRef<Set<number>>(new Set());
 
   useEffect(() => {
@@ -77,6 +80,11 @@ export function QuotaCard({ onOpenSettings }: QuotaCardProps) {
   const clamped = Math.min(percent, 100);
   const remaining = Math.max(data.limitBytes - data.usedBytes, 0);
   const overBudget = data.projectedBytes > data.limitBytes;
+  const spent = formatMoney(
+    data.usedBytes,
+    settings?.ratePerGb ?? 0,
+    settings?.currency ?? "",
+  );
   const barColor =
     percent >= 100
       ? "var(--destructive)"
@@ -105,7 +113,13 @@ export function QuotaCard({ onOpenSettings }: QuotaCardProps) {
           />
         </div>
 
-        <div className="grid grid-cols-2 gap-3">
+        <div className={cn("grid gap-3", spent ? "grid-cols-3" : "grid-cols-2")}>
+          {spent ? (
+            <div className="flex flex-col gap-0.5">
+              <span className="text-[11px] text-muted-foreground">Spent</span>
+              <span className="text-data text-[13px]">{spent}</span>
+            </div>
+          ) : null}
           <div className="flex flex-col gap-0.5">
             <span className="text-[11px] text-muted-foreground">Projected</span>
             <span
