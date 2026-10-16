@@ -1,20 +1,18 @@
 name: Release
 
-# Releases are automatic and always start as a DRAFT — you never need to open
-# the Actions tab and click "Run workflow".
+# Releases are manual and always start as a DRAFT.
 #
-# Every push to `main` (that is not itself a release commit) bumps the patch
-# version in package.json, src-tauri/tauri.conf.json, src-tauri/Cargo.toml and
-# Cargo.lock, commits it, tags vX.Y.Z, then builds every platform and uploads
-# the bundles + latest.json to a DRAFT GitHub release. Open the draft, review
-# it, and click "Publish release" to ship.
+# Run Actions -> Release -> Run workflow and pick the bump type. The workflow
+# bumps the version in package.json, src-tauri/tauri.conf.json,
+# src-tauri/Cargo.toml and Cargo.lock, commits it, tags vX.Y.Z, then builds every
+# platform and uploads the bundles + latest.json to a DRAFT GitHub release. Open
+# the draft, review it, and click "Publish release" to ship.
 #
 # Publishing the draft is what makes the update live: the in-app updater reads
 # releases/latest/download/latest.json, which only resolves to published
 # (non-draft, non-prerelease) releases.
 #
-# Need a minor/major bump or an exact version instead? Run the workflow
-# manually (Actions -> Release -> Run workflow) and pick the bump type.
+# Pushing to `main` runs ci.yml only — it does not release.
 #
 # Required repository secrets:
 #   TAURI_SIGNING_PRIVATE_KEY           (contents of ~/.tauri/datapulse.key)
@@ -24,8 +22,6 @@ name: Release
 #   APPLE_CERTIFICATE, APPLE_CERTIFICATE_PASSWORD, APPLE_SIGNING_IDENTITY,
 #   APPLE_ID, APPLE_PASSWORD, APPLE_TEAM_ID
 on:
-  push:
-    branches: [main]
   workflow_dispatch:
     inputs:
       bump:
@@ -86,13 +82,8 @@ jobs:
             exit 0
           fi
 
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            BUMP="${BUMP:-patch}"
-            VERSION="${VERSION:-}"
-          else
-            BUMP="patch"
-            VERSION=""
-          fi
+          BUMP="${BUMP:-patch}"
+          VERSION="${VERSION:-}"
 
           if [ "$BUMP" = "explicit" ]; then
             if [ -z "$VERSION" ]; then
