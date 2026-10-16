@@ -1,4 +1,4 @@
-use chrono::{Datelike, Duration as ChronoDuration, Local, TimeZone, Timelike};
+use chrono::{Datelike, Duration as ChronoDuration, Local, TimeZone};
 use std::collections::HashMap;
 use std::sync::Arc;
 use tauri::{AppHandle, State};
@@ -572,8 +572,9 @@ fn plan_series(range: &str) -> SeriesPlan {
     match range {
         "today" => {
             let start = local_midnight(0);
-            let hours = Local::now().hour() as i64;
-            let keys = (0..=hours)
+            // All 24 hours, zero-filled: a single bucket just after midnight
+            // collapses the chart into a dot.
+            let keys = (0_i64..24)
                 .map(|offset| {
                     (start + ChronoDuration::hours(offset))
                         .format("%Y-%m-%d %H")
@@ -654,4 +655,23 @@ fn offset_month(year: i32, month: u32, delta: i32) -> (i32, u32) {
         index.div_euclid(12),
         (index.rem_euclid(12) + 1) as u32,
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn today_series_covers_all_24_hours() {
+        let plan = plan_series("today");
+        let midnight = local_midnight(0);
+        assert_eq!(plan.keys.len(), 24);
+        assert_eq!(plan.keys[0], midnight.format("%Y-%m-%d %H").to_string());
+        assert_eq!(
+            plan.keys[23],
+            (midnight + ChronoDuration::hours(23))
+                .format("%Y-%m-%d %H")
+                .to_string()
+        );
+    }
 }
