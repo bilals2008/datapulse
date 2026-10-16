@@ -2,9 +2,12 @@ import { useEffect, useRef, useState } from "react";
 import { ArrowLeft, CircleCheckBig, Download } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import { LATEST_RELEASE_API, RELEASES } from "@/lib/links";
+import {
+  fetchLatestRelease,
+  type ReleaseAsset,
+} from "@/lib/latest-release";
+import { RELEASES } from "@/lib/links";
 
-type Asset = { name: string; browser_download_url: string };
 type UAArchData = {
   getHighEntropyValues: (hints: string[]) => Promise<{ architecture?: string }>;
 };
@@ -21,7 +24,7 @@ const isArm = async () => {
   }
 };
 
-function pickAsset(assets: Asset[], arm: boolean): Asset | undefined {
+function pickAsset(assets: ReleaseAsset[], arm: boolean): ReleaseAsset | undefined {
   const find = (test: (name: string) => boolean) =>
     assets.find((asset) => test(asset.name.toLowerCase()));
   const ua = navigator.userAgent;
@@ -52,7 +55,7 @@ function pickAsset(assets: Asset[], arm: boolean): Asset | undefined {
 }
 
 export function Thanks() {
-  const [installer, setInstaller] = useState<Asset>();
+  const [installer, setInstaller] = useState<ReleaseAsset>();
   const [status, setStatus] = useState<"loading" | "started" | "manual">("loading");
   const started = useRef(false);
 
@@ -61,10 +64,7 @@ export function Thanks() {
 
     const load = async () => {
       try {
-        const res = await fetch(LATEST_RELEASE_API);
-        if (!res.ok) throw new Error(`${res.status}`);
-
-        const release = (await res.json()) as { assets?: Asset[] };
+        const release = await fetchLatestRelease();
         const asset = pickAsset(release.assets ?? [], await isArm());
         if (cancelled) return;
 

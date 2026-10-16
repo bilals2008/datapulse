@@ -7,6 +7,7 @@ const pkgPath = resolve(root, "package.json");
 const confPath = resolve(root, "src-tauri/tauri.conf.json");
 const cargoPath = resolve(root, "src-tauri/Cargo.toml");
 const lockPath = resolve(root, "src-tauri/Cargo.lock");
+const landPath = resolve(root, "landing/package.json");
 
 const arg = (process.argv[2] ?? "").trim().replace(/^v/, "");
 if (!arg) {
@@ -60,5 +61,9 @@ const lock = readFileSync(lockPath, "utf8").replace(
   `$1${next}$2`,
 );
 writeFileSync(lockPath, lock);
+
+const landing = JSON.parse(readFileSync(landPath, "utf8"));
+landing.version = next;
+writeFileSync(landPath, `${JSON.stringify(landing, null, 2)}\n`);
 
 console.log(next);
