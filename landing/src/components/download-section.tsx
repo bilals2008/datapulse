@@ -38,7 +38,7 @@ export function DownloadSection() {
     <section id="download" className="border-t border-border/70">
       <div className="mx-auto w-full max-w-5xl px-5 py-20 sm:py-24">
         <h2 className="font-heading text-center text-2xl font-semibold tracking-tight text-balance sm:text-3xl">
-          Download for your platform
+          Pick your platform
         </h2>
         <p className="mx-auto mt-3 max-w-md text-center text-sm text-pretty text-muted-foreground">
           Native builds for the three desktop OSes. Installed copies update

@@ -1,4 +1,4 @@
-import { Download } from "lucide-react";
+import { Download, ShieldCheck } from "lucide-react";
 
 import { ScreenshotPlaceholder } from "@/components/screenshot-placeholder";
 import { Badge } from "@/components/ui/badge";
@@ -21,11 +21,13 @@ export function Hero() {
       <div className="mx-auto flex w-full max-w-4xl flex-col items-center px-5 pt-12 pb-24 text-center sm:pt-16">
         <Badge
           variant="outline"
-          className="h-auto gap-2 rounded-full bg-card/40 px-3 py-1.5 text-[11px] font-medium tracking-[0.2em] text-muted-foreground uppercase backdrop-blur"
+          className="h-auto gap-2 rounded-full border-border/70 bg-card/40 px-3 py-1.5 text-[11px] font-medium tracking-[0.2em] text-muted-foreground uppercase shadow-sm backdrop-blur"
         >
-          <span aria-hidden="true" className="text-primary">
-            ✦
-          </span>
+          <ShieldCheck
+            className="text-primary"
+            strokeWidth={2}
+            aria-hidden="true"
+          />
           Open source · Local-first
         </Badge>
 
