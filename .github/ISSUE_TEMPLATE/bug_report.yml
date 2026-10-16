@@ -1,0 +1,70 @@
+name: Bug report
+description: Something in DataPulse is broken or wrong
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the report. Please include the version and platform — usage
+        bugs are almost always hardware or OS specific.
+
+  - type: input
+    id: version
+    attributes:
+      label: DataPulse version
+      description: Shown in Settings → About, or under the title in the update card.
+      placeholder: "0.1.3"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating system
+      options:
+        - Windows 11
+        - Windows 10
+        - macOS (Apple Silicon)
+        - macOS (Intel)
+        - Linux
+    validations:
+      required: true
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What you saw, and what you expected instead.
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Open the Usage tab
+        2. Switch range to 30 days
+        3. ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Screenshots or logs
+      description: |
+        For wrong numbers, say which adapter and whether the total matches the
+        OS counter (`netstat -e` on Windows). Paste any console output here.
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: sanity
+    attributes:
+      label: Before submitting
+      options:
+        - label: I searched existing issues and this is not a duplicate.
+          required: true
+        - label: I am on the latest release (Settings → Updates → Check for updates).
+          required: false
