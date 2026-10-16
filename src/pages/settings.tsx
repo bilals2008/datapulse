@@ -2,6 +2,7 @@ import { HardDrive, Trash2 } from "lucide-react";
 import { useTheme, type Theme } from "@/hooks/use-theme";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
+import { disable, enable, isEnabled } from "@tauri-apps/plugin-autostart";
 
 import { InfoField } from "@/components/info-field";
 import { UpdateCard } from "@/components/update-card";
@@ -57,6 +58,13 @@ export function SettingsView() {
   const [quotaGb, setQuotaGb] = useState("");
   const [resetDay, setResetDay] = useState("1");
   const [saving, setSaving] = useState(false);
+  const [autostart, setAutostart] = useState(false);
+
+  useEffect(() => {
+    isEnabled()
+      .then(setAutostart)
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     if (!settings) return;
@@ -175,6 +183,39 @@ export function SettingsView() {
                   checked ? "Minimize to tray enabled" : "Minimize to tray disabled",
                 ),
               );
+            }}
+          />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Startup</CardTitle>
+          <CardDescription>
+            Launch DataPulse automatically when you sign in to your computer.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="flex items-center justify-between gap-4">
+          <div className="flex flex-col gap-0.5">
+            <Label htmlFor="launch-on-startup">Open on startup</Label>
+            <p className="text-xs text-muted-foreground">
+              Starts monitoring as soon as you log in.
+            </p>
+          </div>
+          <Switch
+            id="launch-on-startup"
+            checked={autostart}
+            onCheckedChange={(checked) => {
+              void (checked ? enable() : disable())
+                .then(() => {
+                  setAutostart(checked);
+                  toast.success(
+                    checked
+                      ? "DataPulse will open on startup"
+                      : "Startup launch disabled",
+                  );
+                })
+                .catch(() => toast.error("Could not change the startup setting"));
             }}
           />
         </CardContent>
