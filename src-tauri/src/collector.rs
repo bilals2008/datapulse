@@ -9,10 +9,11 @@ use tauri::{AppHandle, Emitter};
 use crate::analytics::{self, HourRow};
 use crate::models::{InterfaceSnapshot, TickPayload};
 use crate::state::AppState;
-use crate::{db, net, wifi};
+use crate::{db, hud, net, procs, wifi};
 
 const FLUSH_INTERVAL: Duration = Duration::from_secs(5);
 const WIFI_INTERVAL: Duration = Duration::from_secs(15);
+const HUD_INTERVAL: Duration = Duration::from_secs(15);
 const ANOMALY_INTERVAL: Duration = Duration::from_secs(300);
 const ANOMALY_LOOKBACK: i64 = 30 * 86_400;
 const MAX_DELTA_RATE: f64 = 1_000_000_000.0;
@@ -37,6 +38,7 @@ fn run_loop(app: AppHandle, state: Arc<AppState>) {
     let mut last_wifi = Instant::now()
         .checked_sub(WIFI_INTERVAL)
         .unwrap_or_else(Instant::now);
+    let mut last_hud = Instant::now();
     let mut last_anomaly = Instant::now()
         .checked_sub(ANOMALY_INTERVAL)
         .unwrap_or_else(Instant::now);
@@ -120,6 +122,11 @@ fn run_loop(app: AppHandle, state: Arc<AppState>) {
             last_wifi = Instant::now();
         }
 
+        if last_hud.elapsed() >= HUD_INTERVAL {
+            hud::refresh(&app, &state);
+            last_hud = Instant::now();
+        }
+
         if last_flush.elapsed() >= FLUSH_INTERVAL {
             flush(&state);
             last_flush = Instant::now();
@@ -176,8 +183,13 @@ fn scan_anomalies(app: &AppHandle, state: &Arc<AppState>) {
         return;
     }
 
+    // Sampling processes sleeps for one CPU interval; doing it here keeps the
+    // cost off the tick loop and only pays it on the scans that found something.
+    let procs = procs::top_processes();
+
     let conn = state.db.lock().unwrap();
-    for anomaly in detected {
+    for mut anomaly in detected {
+        anomaly.procs = procs.clone();
         if let Ok(true) = db::insert_anomaly(&conn, &anomaly, now) {
             let _ = app.emit("pulse-anomaly", &anomaly);
         }

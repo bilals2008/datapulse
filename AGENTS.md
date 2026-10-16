@@ -30,14 +30,17 @@ usage. Windows-first (Wi-Fi details come from `netsh`).
 ## Layout
 
 ```
-src-tauri/src/   models, error, state, net (counters), wifi (netsh),
-                 db (SQLite), collector (thread + `pulse-tick`), commands (IPC), lib
+src-tauri/src/   models, error, state, net (counters), wifi (netsh), procs (busiest processes),
+                 db (SQLite), collector (thread + `pulse-tick`), analytics (forecast, anomaly,
+                 quiet window), speed (ISP speed test), hud (tray tint + taskbar progress),
+                 lan (LAN dashboard server), commands (IPC), lib
 src/lib/         ipc.ts (typed invoke wrappers + shared types), format.ts
 src/hooks/       use-poll, use-settings (SettingsProvider), use-live-stats (LiveStatsProvider),
                  use-updater (UpdaterProvider + auto-check on startup)
 src/components/  app-sidebar, quota-card, network-card, usage-chart, live-sparkline,
-                 update-card, info-field, theme-toggle, ui/* (shadcn)
-src/pages/       dashboard, usage, interfaces, settings
+                 free-window-card, speed-card, update-card, info-field, theme-toggle,
+                 ui/* (shadcn)
+src/pages/       dashboard, usage, insights, interfaces, settings
 src/index.css    single source of truth for design tokens
 scripts/         bump-version.mjs (keeps every version field in sync)
 ```
@@ -70,6 +73,11 @@ scripts/         bump-version.mjs (keeps every version field in sync)
 - Settings live in the SQLite `settings` table; the DB is `usage.db` in
   `app_data_dir` (WAL mode). Startup reconciles counters via `iface_cumulative`.
 - Local-day bucketing is done in Rust (chrono `Local` offset); gaps are zero-filled.
+- Anomalies store a process snapshot taken at detection time (`procs.rs`). It is a
+  hint about what was busy, not measured per-process traffic.
+- The hourly speed test (`speed.rs`) is opt-in and pulls ~2 MB per run. The LAN
+  dashboard (`lan.rs`) is opt-in, binds the machine's LAN address, and needs the
+  token in the URL path. Both are off by default.
 - Navigation is state-based (`ViewId`), keyboard shortcuts `Ctrl/Cmd + 1..4`.
 
 ## Releases & updates

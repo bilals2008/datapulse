@@ -1,22 +1,26 @@
 use chrono::{Datelike, Duration as ChronoDuration, Local, TimeZone, Timelike};
 use std::collections::HashMap;
 use std::sync::Arc;
-use tauri::State;
+use tauri::{AppHandle, State};
 
 use crate::analytics;
 use crate::error::AppError;
+use crate::lan::LanServer;
 use crate::models::{
-    Anomaly, AppMeta, BusiestDay, DailyTotal, InterfaceTotal, QuotaStatus, Recap, TickPayload,
-    Timeline, TimelineBucket, UsageBucket, UsageSeries,
+    Anomaly, AppMeta, BusiestDay, DailyTotal, FreeWindow, HourBytes, InterfaceTotal, LanInfo,
+    QuotaStatus, Recap, SpeedHour, SpeedReport, SpeedSample, TickPayload, Timeline, TimelineBucket,
+    UsageBucket, UsageSeries,
 };
 use crate::state::{AppState, Config};
-use crate::{db, net};
+use crate::{db, net, speed};
 
 type Res<T> = Result<T, AppError>;
 
 const DAY_SECS: i64 = 86_400;
 const HOUR_SECS: i64 = 3_600;
 const MINUTE_SECS: i64 = 60;
+/// Days of history the quiet-window average is drawn from.
+const QUIET_LOOKBACK_DAYS: i64 = 14;
 /// Longest time-machine span before dropping from per-minute to hourly buckets.
 const MINUTE_RESOLUTION_LIMIT: i64 = 36 * HOUR_SECS;
 /// Longest span kept at hourly resolution before falling back to daily buckets.
@@ -40,6 +44,15 @@ pub fn set_settings(state: State<'_, Arc<AppState>>, config: Config) -> Res<Conf
     if !next.quota_gb.is_finite() || next.quota_gb < 0.0 {
         next.quota_gb = 0.0;
     }
+    if !next.rate_per_gb.is_finite() || next.rate_per_gb < 0.0 {
+        next.rate_per_gb = 0.0;
+    }
+    next.currency = next.currency.trim().chars().take(6).collect();
+
+    let previous = state.config.lock().unwrap().clone();
+    if next.lan_enabled && next.lan_token.is_empty() {
+        next.lan_token = generate_token();
+    }
 
     {
         let conn = state.db.lock().unwrap();
@@ -47,12 +60,46 @@ pub fn set_settings(state: State<'_, Arc<AppState>>, config: Config) -> Res<Conf
     }
 
     *state.config.lock().unwrap() = next.clone();
+
+    if previous.lan_enabled != next.lan_enabled || previous.lan_token != next.lan_token {
+        apply_lan(state.inner(), &next);
+    }
+
     Ok(next)
+}
+
+/// (Re)starts the LAN dashboard to match `config`. Dropping the old server stops
+/// its accept loop.
+pub(crate) fn apply_lan(state: &Arc<AppState>, config: &Config) {
+    let mut slot = state.lan.lock().unwrap();
+    *slot = None;
+    if config.lan_enabled {
+        *slot = LanServer::start(Arc::clone(state), config.lan_token.clone());
+    }
+}
+
+/// Shared secret in the dashboard URL. Seeded from the OS RNG via `RandomState`.
+fn generate_token() -> String {
+    use std::collections::hash_map::RandomState;
+    use std::hash::{BuildHasher, Hasher};
+
+    (0..2)
+        .map(|_| {
+            let mut hasher = RandomState::new().build_hasher();
+            hasher.write_u64(std::process::id() as u64);
+            format!("{:016x}", hasher.finish())
+        })
+        .collect()
 }
 
 #[tauri::command]
 pub fn get_usage_series(state: State<'_, Arc<AppState>>, range: String) -> Res<UsageSeries> {
-    let plan = plan_series(&range);
+    usage_series(state.inner(), &range)
+}
+
+/// Shared with the LAN dashboard, which serves today's buckets to the page.
+pub fn usage_series(state: &Arc<AppState>, range: &str) -> Res<UsageSeries> {
+    let plan = plan_series(range);
     let conn = state.db.lock().unwrap();
     let map = db::series(&conn, plan.format, plan.since, analytics::local_offset_secs())?;
 
@@ -97,6 +144,11 @@ pub fn get_interface_totals(
 
 #[tauri::command]
 pub fn get_quota_status(state: State<'_, Arc<AppState>>) -> Res<QuotaStatus> {
+    quota_status(state.inner())
+}
+
+/// Current cap status. Shared with the tray/taskbar HUD and the LAN dashboard.
+pub fn quota_status(state: &Arc<AppState>) -> Res<QuotaStatus> {
     let config = state.config.lock().unwrap().clone();
     let reset_day = config.reset_day.clamp(1, 28);
 
@@ -328,6 +380,132 @@ pub fn get_recap(state: State<'_, Arc<AppState>>) -> Res<Recap> {
         busiest_day,
         busiest_hour,
         top_interface,
+    })
+}
+
+#[tauri::command]
+pub fn get_free_window(state: State<'_, Arc<AppState>>) -> Res<FreeWindow> {
+    let tz = analytics::local_offset_secs();
+    let since = local_midnight(QUIET_LOOKBACK_DAYS - 1).timestamp();
+
+    let rows = {
+        let conn = state.db.lock().unwrap();
+        db::average_hourly(&conn, since, tz)?
+    };
+
+    let day = analytics::hourly_average(&rows);
+    let (start_hour, window_bytes) = analytics::quietest_window(&day);
+    let day_bytes = day.iter().sum::<u64>() / 24;
+    let busiest_hour = day
+        .iter()
+        .enumerate()
+        .max_by_key(|(_, bytes)| *bytes)
+        .filter(|(_, bytes)| **bytes > 0)
+        .map(|(hour, _)| hour as u32);
+
+    let quota = quota_status(&state).ok().filter(|quota| quota.enabled);
+    let advice = match quota {
+        Some(quota) => {
+            let remaining = quota.limit_bytes.saturating_sub(quota.used_bytes);
+            format!(
+                "{} left this period. This window has averaged {} per hour, so a four-hour run \
+                 moves about {}.",
+                analytics::human_bytes(remaining),
+                analytics::human_bytes(window_bytes),
+                analytics::human_bytes(window_bytes.saturating_mul(4)),
+            )
+        }
+        None => "Set a data cap to see how much remaining allowance this window can carry."
+            .to_string(),
+    };
+
+    Ok(FreeWindow {
+        start_hour,
+        end_hour: (start_hour + analytics::WINDOW_HOURS) % 24,
+        window_bytes,
+        day_bytes,
+        busiest_hour,
+        advice,
+        hours: day
+            .iter()
+            .enumerate()
+            .map(|(hour, bytes)| HourBytes {
+                hour: hour as u32,
+                bytes: *bytes,
+            })
+            .collect(),
+    })
+}
+
+#[tauri::command]
+pub fn get_speed_report(state: State<'_, Arc<AppState>>) -> Res<SpeedReport> {
+    let enabled = state.config.lock().unwrap().speedtest_enabled;
+    let tz = analytics::local_offset_secs();
+
+    let (latest, samples) = {
+        let conn = state.db.lock().unwrap();
+        let latest = db::latest_speed_sample(&conn)?;
+        let since = Local::now().timestamp() - 90 * DAY_SECS;
+        (latest, db::speed_samples_since(&conn, since)?)
+    };
+
+    let mut totals = [0.0_f64; 24];
+    let mut counts = [0_u32; 24];
+    for sample in &samples {
+        if !sample.ok || sample.down_bps <= 0.0 {
+            continue;
+        }
+        let hour = ((sample.ts + tz as i64).rem_euclid(DAY_SECS) / HOUR_SECS) as usize;
+        totals[hour] += sample.down_bps;
+        counts[hour] += 1;
+    }
+
+    let by_hour: Vec<SpeedHour> = (0..24)
+        .filter(|hour| counts[*hour] > 0)
+        .map(|hour| SpeedHour {
+            hour: hour as u32,
+            mbps: totals[hour] / counts[hour] as f64 * 8.0 / 1_000_000.0,
+            samples: counts[hour],
+        })
+        .collect();
+
+    Ok(SpeedReport {
+        enabled,
+        latest,
+        best: by_hour
+            .iter()
+            .max_by(|a, b| a.mbps.total_cmp(&b.mbps))
+            .cloned(),
+        worst: by_hour
+            .iter()
+            .min_by(|a, b| a.mbps.total_cmp(&b.mbps))
+            .cloned(),
+        by_hour,
+    })
+}
+
+#[tauri::command]
+pub async fn run_speedtest(
+    app: AppHandle,
+    state: State<'_, Arc<AppState>>,
+) -> Res<SpeedSample> {
+    let sample = tauri::async_runtime::spawn_blocking(speed::run_test)
+        .await
+        .map_err(|error| AppError::Io(std::io::Error::other(error)))?;
+
+    speed::record(&app, state.inner(), &sample);
+    Ok(sample)
+}
+
+#[tauri::command]
+pub fn get_lan_info(state: State<'_, Arc<AppState>>) -> Res<LanInfo> {
+    let enabled = state.config.lock().unwrap().lan_enabled;
+    let lan = state.lan.lock().unwrap();
+
+    Ok(LanInfo {
+        enabled,
+        running: lan.is_some(),
+        url: lan.as_ref().map(|server| server.url().to_string()).unwrap_or_default(),
     })
 }
 

@@ -3,8 +3,11 @@ use std::collections::HashMap;
 use rusqlite::{params, Connection};
 
 use crate::error::AppError;
-use crate::models::Anomaly;
+use crate::models::{Anomaly, SpeedSample};
 use crate::state::Config;
+
+/// Speed samples are kept for 90 days.
+const SPEED_RETENTION_SECS: i64 = 90 * 86_400;
 
 pub fn open(path: &std::path::Path) -> Result<Connection, AppError> {
     let conn = Connection::open(path)?;
@@ -39,13 +42,45 @@ pub fn open(path: &std::path::Path) -> Result<Connection, AppError> {
             ratio      REAL NOT NULL DEFAULT 0,
             severity   TEXT NOT NULL DEFAULT 'low',
             message    TEXT NOT NULL DEFAULT '',
+            procs      TEXT NOT NULL DEFAULT '[]',
             dismissed  INTEGER NOT NULL DEFAULT 0,
             created_at INTEGER NOT NULL
          );
          CREATE INDEX IF NOT EXISTS idx_anomalies_active
-            ON anomalies (dismissed, ts DESC);",
+            ON anomalies (dismissed, ts DESC);
+         CREATE TABLE IF NOT EXISTS speed_samples (
+            id         INTEGER PRIMARY KEY AUTOINCREMENT,
+            ts         INTEGER NOT NULL,
+            down_bps   REAL NOT NULL DEFAULT 0,
+            latency_ms REAL NOT NULL DEFAULT 0,
+            bytes      INTEGER NOT NULL DEFAULT 0,
+            ok         INTEGER NOT NULL DEFAULT 1,
+            error      TEXT NOT NULL DEFAULT ''
+         );
+         CREATE INDEX IF NOT EXISTS idx_speed_ts ON speed_samples (ts DESC);",
     )?;
+
+    ensure_column(&conn, "anomalies", "procs", "TEXT NOT NULL DEFAULT '[]'")?;
     Ok(conn)
+}
+
+/// Adds a column to an existing table when an older database lacks it.
+fn ensure_column(
+    conn: &Connection,
+    table: &str,
+    column: &str,
+    decl: &str,
+) -> Result<(), AppError> {
+    let exists: i64 = conn.query_row(
+        "SELECT COUNT(*) FROM pragma_table_info(?1) WHERE name = ?2",
+        params![table, column],
+        |row| row.get(0),
+    )?;
+
+    if exists == 0 {
+        conn.execute_batch(&format!("ALTER TABLE {table} ADD COLUMN {column} {decl}"))?;
+    }
+    Ok(())
 }
 
 pub fn insert_usage(
@@ -204,6 +239,23 @@ pub fn load_config(conn: &Connection) -> Result<Config, AppError> {
                     config.auto_check_updates = parsed;
                 }
             }
+            "rate_per_gb" => {
+                if let Ok(parsed) = value.parse() {
+                    config.rate_per_gb = parsed;
+                }
+            }
+            "currency" => config.currency = value,
+            "speedtest_enabled" => {
+                if let Ok(parsed) = value.parse() {
+                    config.speedtest_enabled = parsed;
+                }
+            }
+            "lan_enabled" => {
+                if let Ok(parsed) = value.parse() {
+                    config.lan_enabled = parsed;
+                }
+            }
+            "lan_token" => config.lan_token = value,
             _ => {}
         }
     }
@@ -217,6 +269,11 @@ pub fn save_config(conn: &Connection, config: &Config) -> Result<(), AppError> {
         ("reset_day", config.reset_day.to_string()),
         ("minimize_to_tray", config.minimize_to_tray.to_string()),
         ("auto_check_updates", config.auto_check_updates.to_string()),
+        ("rate_per_gb", config.rate_per_gb.to_string()),
+        ("currency", config.currency.clone()),
+        ("speedtest_enabled", config.speedtest_enabled.to_string()),
+        ("lan_enabled", config.lan_enabled.to_string()),
+        ("lan_token", config.lan_token.clone()),
     ];
     for (key, value) in pairs {
         conn.execute(
@@ -399,10 +456,11 @@ pub fn insert_anomaly(
     anomaly: &Anomaly,
     created_at: i64,
 ) -> Result<bool, AppError> {
+    let procs = serde_json::to_string(&anomaly.procs).unwrap_or_else(|_| "[]".to_string());
     let changed = conn.execute(
         "INSERT OR IGNORE INTO anomalies
-            (ts, kind, iface, bytes, baseline, ratio, severity, message, created_at)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+            (ts, kind, iface, bytes, baseline, ratio, severity, message, procs, created_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
         params![
             anomaly.ts,
             anomaly.kind,
@@ -412,6 +470,7 @@ pub fn insert_anomaly(
             anomaly.ratio,
             anomaly.severity,
             anomaly.message,
+            procs,
             created_at,
         ],
     )?;
@@ -420,13 +479,14 @@ pub fn insert_anomaly(
 
 pub fn list_anomalies(conn: &Connection, limit: u32) -> Result<Vec<Anomaly>, AppError> {
     let mut stmt = conn.prepare(
-        "SELECT id, kind, ts, iface, bytes, baseline, ratio, severity, message
+        "SELECT id, kind, ts, iface, bytes, baseline, ratio, severity, message, procs
          FROM anomalies
          WHERE dismissed = 0
          ORDER BY ts DESC, id DESC
          LIMIT ?1",
     )?;
     let rows = stmt.query_map(params![limit.clamp(1, 500) as i64], |row| {
+        let procs: String = row.get(9)?;
         Ok(Anomaly {
             id: row.get(0)?,
             kind: row.get(1)?,
@@ -437,6 +497,7 @@ pub fn list_anomalies(conn: &Connection, limit: u32) -> Result<Vec<Anomaly>, App
             ratio: row.get(6)?,
             severity: row.get(7)?,
             message: row.get(8)?,
+            procs: serde_json::from_str(&procs).unwrap_or_default(),
         })
     })?;
 
@@ -460,4 +521,85 @@ pub fn dismiss_all_anomalies(conn: &Connection) -> Result<(), AppError> {
 pub fn prune_anomalies(conn: &Connection, before: i64) -> Result<(), AppError> {
     conn.execute("DELETE FROM anomalies WHERE ts < ?1", params![before])?;
     Ok(())
+}
+
+pub fn insert_speed_sample(conn: &Connection, sample: &SpeedSample) -> Result<(), AppError> {
+    conn.execute(
+        "INSERT INTO speed_samples (ts, down_bps, latency_ms, bytes, ok, error)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+        params![
+            sample.ts,
+            sample.down_bps,
+            sample.latency_ms,
+            sample.bytes as i64,
+            sample.ok as i64,
+            sample.error,
+        ],
+    )?;
+    conn.execute("DELETE FROM speed_samples WHERE ts < ?1", params![
+        sample.ts - SPEED_RETENTION_SECS
+    ])?;
+    Ok(())
+}
+
+pub fn latest_speed_sample(conn: &Connection) -> Result<Option<SpeedSample>, AppError> {
+    let mut stmt = conn.prepare(
+        "SELECT ts, down_bps, latency_ms, bytes, ok, error FROM speed_samples
+         ORDER BY ts DESC LIMIT 1",
+    )?;
+    let mut rows = stmt.query_map([], map_speed_sample)?;
+    rows.next().transpose().map_err(AppError::from)
+}
+
+pub fn speed_samples_since(conn: &Connection, since: i64) -> Result<Vec<SpeedSample>, AppError> {
+    let mut stmt = conn.prepare(
+        "SELECT ts, down_bps, latency_ms, bytes, ok, error FROM speed_samples
+         WHERE ts >= ?1 ORDER BY ts",
+    )?;
+    let rows = stmt.query_map(params![since], map_speed_sample)?;
+
+    let mut out = Vec::new();
+    for row in rows {
+        out.push(row?);
+    }
+    Ok(out)
+}
+
+fn map_speed_sample(row: &rusqlite::Row<'_>) -> rusqlite::Result<SpeedSample> {
+    Ok(SpeedSample {
+        ts: row.get(0)?,
+        down_bps: row.get(1)?,
+        latency_ms: row.get(2)?,
+        bytes: row.get::<_, i64>(3)?.max(0) as u64,
+        ok: row.get::<_, i64>(4)? != 0,
+        error: row.get(5)?,
+    })
+}
+
+/// Transfer per local hour-of-day averaged over the given window.
+pub fn average_hourly(
+    conn: &Connection,
+    since: i64,
+    tz_offset: i32,
+) -> Result<Vec<(u32, u64)>, AppError> {
+    let mut stmt = conn.prepare(
+        "SELECT ((ts_min + ?1) % 86400) / 3600 AS hod,
+                COALESCE(SUM(rx + tx), 0) / COUNT(DISTINCT ((ts_min + ?1) / 86400)) AS avg_bytes
+         FROM usage_minute
+         WHERE ts_min >= ?2
+         GROUP BY hod
+         ORDER BY hod",
+    )?;
+    let rows = stmt.query_map(params![tz_offset as i64, since], |row| {
+        Ok((
+            row.get::<_, i64>(0)?.clamp(0, 23) as u32,
+            row.get::<_, i64>(1)?.max(0) as u64,
+        ))
+    })?;
+
+    let mut out = Vec::new();
+    for row in rows {
+        out.push(row?);
+    }
+    Ok(out)
 }

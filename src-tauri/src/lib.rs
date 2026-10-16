@@ -12,8 +12,12 @@ mod collector;
 mod commands;
 mod db;
 mod error;
+mod hud;
+mod lan;
 mod models;
 mod net;
+mod procs;
+mod speed;
 mod state;
 mod wifi;
 
@@ -161,16 +165,19 @@ pub fn run() {
                 acc: Mutex::new(Default::default()),
                 totals: Mutex::new(Default::default()),
                 db_path: db_path_str,
+                tray: Mutex::new(None),
+                lan: Mutex::new(None),
             });
 
             app.manage(state.clone());
-            collector::spawn(app.handle().clone(), state);
+            collector::spawn(app.handle().clone(), state.clone());
+            speed::spawn(app.handle().clone(), state.clone());
 
             let show_item = MenuItem::with_id(app, "show", "Show DataPulse", true, None::<&str>)?;
             let quit_item = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
             let menu = Menu::with_items(app, &[&show_item, &quit_item])?;
 
-            TrayIconBuilder::with_id("main-tray")
+            let tray = TrayIconBuilder::with_id("main-tray")
                 .icon(app.default_window_icon().unwrap().clone())
                 .tooltip("DataPulse")
                 .menu(&menu)
@@ -193,6 +200,13 @@ pub fn run() {
                 })
                 .build(app)?;
 
+            *state.tray.lock().unwrap() = Some(tray);
+
+            let config = state.config.lock().unwrap().clone();
+            if config.lan_enabled {
+                commands::apply_lan(&state, &config);
+            }
+
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -212,6 +226,10 @@ pub fn run() {
             commands::get_timeline,
             commands::get_daily_activity,
             commands::get_recap,
+            commands::get_free_window,
+            commands::get_speed_report,
+            commands::run_speedtest,
+            commands::get_lan_info,
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application");

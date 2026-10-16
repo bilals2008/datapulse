@@ -108,6 +108,7 @@ pub fn detect_anomalies(rows: &[HourRow], tz_offset: i32, now: i64) -> Vec<Anoma
             ratio,
             severity: severity_of(total, ratio).to_string(),
             message: describe(kind, total, ratio, hour),
+            procs: Vec::new(),
         });
     }
 

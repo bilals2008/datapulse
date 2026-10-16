@@ -1,8 +1,10 @@
 mod anomaly;
 mod forecast;
+mod free_window;
 
 pub use anomaly::{detect_anomalies, HourRow};
 pub use forecast::{forecast, history_lookback_secs, FAR_FUTURE_DAYS};
+pub use free_window::{hourly_average, quietest_window, WINDOW_HOURS};
 
 /// Seconds east of UTC for the machine's current local time.
 pub fn local_offset_secs() -> i32 {

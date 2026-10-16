@@ -3,7 +3,9 @@ use std::sync::Mutex;
 
 use rusqlite::Connection;
 use serde::{Deserialize, Serialize};
+use tauri::tray::TrayIcon;
 
+use crate::lan::LanServer;
 use crate::models::{TickPayload, WifiInfo};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -14,6 +16,13 @@ pub struct Config {
     pub reset_day: u32,
     pub minimize_to_tray: bool,
     pub auto_check_updates: bool,
+    /// Price of one GB of data. `0` disables every money figure in the app.
+    pub rate_per_gb: f64,
+    pub currency: String,
+    pub speedtest_enabled: bool,
+    pub lan_enabled: bool,
+    /// Path token for the LAN dashboard; any request without it is refused.
+    pub lan_token: String,
 }
 
 impl Default for Config {
@@ -24,6 +33,11 @@ impl Default for Config {
             reset_day: 1,
             minimize_to_tray: false,
             auto_check_updates: true,
+            rate_per_gb: 0.0,
+            currency: "PKR".to_string(),
+            speedtest_enabled: false,
+            lan_enabled: false,
+            lan_token: String::new(),
         }
     }
 }
@@ -43,4 +57,6 @@ pub struct AppState {
     pub acc: Mutex<HashMap<String, (u64, u64)>>,
     pub totals: Mutex<HashMap<String, (u64, u64)>>,
     pub db_path: String,
+    pub tray: Mutex<Option<TrayIcon>>,
+    pub lan: Mutex<Option<LanServer>>,
 }
