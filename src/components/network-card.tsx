@@ -9,6 +9,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { usePoll } from "@/hooks/use-poll";
+import { formatMBps } from "@/lib/format";
 import { api, type WifiInfo } from "@/lib/ipc";
 import { cn } from "@/lib/utils";
 
@@ -113,8 +114,8 @@ export function NetworkCard() {
             <div className="grid grid-cols-2 gap-3">
               <InfoField label="Radio" value={wifi.radioType || "—"} />
               <InfoField label="Channel" value={wifi.channel || "—"} />
-              <InfoField label="Link down" value={`${wifi.rxMbps} Mbps`} />
-              <InfoField label="Link up" value={`${wifi.txMbps} Mbps`} />
+              <InfoField label="Link down" value={formatMBps(wifi.rxMbps)} />
+              <InfoField label="Link up" value={formatMBps(wifi.txMbps)} />
             </div>
             <div className="flex items-start gap-2 border-t border-border/60 pt-3">
               <span

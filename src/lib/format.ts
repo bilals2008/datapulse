@@ -137,10 +137,12 @@ export function formatHourRange(start: number, end: number): string {
   return `${formatHour(start)} – ${formatHour(end)}`;
 }
 
-export function formatMbps(mbps: number): string {
+/** Formats a megabit-per-second rate as megabytes per second. */
+export function formatMBps(mbps: number): string {
   if (!Number.isFinite(mbps) || mbps <= 0) return "—";
-  const digits = mbps >= 100 ? 0 : mbps >= 10 ? 1 : 2;
-  return `${mbps.toFixed(digits)} Mbps`;
+  const value = mbps / 8;
+  const digits = value >= 100 ? 0 : value >= 10 ? 1 : 2;
+  return `${value.toFixed(digits)} MB/s`;
 }
 
 function clock(seconds: number): string {

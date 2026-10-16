@@ -14,7 +14,7 @@ import {
 } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { usePoll } from "@/hooks/use-poll";
-import { formatHour, formatMbps, formatTime } from "@/lib/format";
+import { formatHour, formatMBps, formatTime } from "@/lib/format";
 import { api } from "@/lib/ipc";
 import { cn } from "@/lib/utils";
 
@@ -91,7 +91,7 @@ export function SpeedCard() {
                 latest.ok ? undefined : "text-destructive",
               )}
             >
-              {latest.ok ? formatMbps(latest.downBps * 8e-6) : "Failed"}
+              {latest.ok ? formatMBps(latest.downBps * 8e-6) : "Failed"}
             </span>
             <span className="text-xs text-muted-foreground">
               {latest.ok
@@ -117,7 +117,7 @@ export function SpeedCard() {
                     key={hour}
                     title={
                       entry
-                        ? `${formatHour(hour)} · ${formatMbps(entry.mbps)} (${entry.samples})`
+                        ? `${formatHour(hour)} · ${formatMBps(entry.mbps)} (${entry.samples})`
                         : `${formatHour(hour)} · no samples`
                     }
                     style={{ height: `${height}%` }}
@@ -139,7 +139,7 @@ export function SpeedCard() {
                 label="Fastest hour"
                 value={
                   data.best
-                    ? `${formatHour(data.best.hour)} · ${formatMbps(data.best.mbps)}`
+                    ? `${formatHour(data.best.hour)} · ${formatMBps(data.best.mbps)}`
                     : "—"
                 }
               />
@@ -147,7 +147,7 @@ export function SpeedCard() {
                 label="Slowest hour"
                 value={
                   data.worst
-                    ? `${formatHour(data.worst.hour)} · ${formatMbps(data.worst.mbps)}`
+                    ? `${formatHour(data.worst.hour)} · ${formatMBps(data.worst.mbps)}`
                     : "—"
                 }
               />
