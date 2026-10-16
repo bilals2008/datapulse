@@ -19,6 +19,11 @@ const DEFAULT_SETTINGS: AppSettings = {
   resetDay: 1,
   minimizeToTray: false,
   autoCheckUpdates: true,
+  ratePerGb: 0,
+  currency: "PKR",
+  speedtestEnabled: false,
+  lanEnabled: false,
+  lanToken: "",
 };
 
 const SettingsContext = createContext<SettingsContextValue>({

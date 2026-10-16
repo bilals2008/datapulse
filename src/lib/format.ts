@@ -118,6 +118,31 @@ export function bytesToGb(bytes: number): number {
   return bytes / (1024 * 1024 * 1024);
 }
 
+/** Cost of `bytes` at `ratePerGb`, e.g. `PKR 1,240`. Empty when no rate is set. */
+export function formatMoney(
+  bytes: number,
+  ratePerGb: number,
+  currency: string,
+): string {
+  if (!Number.isFinite(ratePerGb) || ratePerGb <= 0) return "";
+  const amount = bytesToGb(bytes) * ratePerGb;
+  const value = amount.toLocaleString(undefined, {
+    maximumFractionDigits: amount >= 100 ? 0 : 1,
+  });
+  return `${currency} ${value}`.trim();
+}
+
+/** Clock range label for an hour-of-day window, e.g. `2 AM – 6 AM`. */
+export function formatHourRange(start: number, end: number): string {
+  return `${formatHour(start)} – ${formatHour(end)}`;
+}
+
+export function formatMbps(mbps: number): string {
+  if (!Number.isFinite(mbps) || mbps <= 0) return "—";
+  const digits = mbps >= 100 ? 0 : mbps >= 10 ? 1 : 2;
+  return `${mbps.toFixed(digits)} Mbps`;
+}
+
 function clock(seconds: number): string {
   const date = new Date(seconds * 1000);
   return `${String(date.getHours()).padStart(2, "0")}:${String(

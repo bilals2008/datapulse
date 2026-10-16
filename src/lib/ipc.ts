@@ -73,6 +73,58 @@ export type Anomaly = {
   ratio: number;
   severity: "low" | "medium" | "high";
   message: string;
+  procs: ProcessSample[];
+};
+
+/** Busy processes at the moment a spike was recorded. A hint, not per-app traffic. */
+export type ProcessSample = {
+  name: string;
+  cpu: number;
+  diskWritten: number;
+};
+
+export type HourBytes = {
+  hour: number;
+  bytes: number;
+};
+
+export type FreeWindow = {
+  startHour: number;
+  endHour: number;
+  windowBytes: number;
+  dayBytes: number;
+  busiestHour: number | null;
+  advice: string;
+  hours: HourBytes[];
+};
+
+export type SpeedSample = {
+  ts: number;
+  downBps: number;
+  latencyMs: number;
+  bytes: number;
+  ok: boolean;
+  error: string;
+};
+
+export type SpeedHour = {
+  hour: number;
+  mbps: number;
+  samples: number;
+};
+
+export type SpeedReport = {
+  enabled: boolean;
+  latest: SpeedSample | null;
+  best: SpeedHour | null;
+  worst: SpeedHour | null;
+  byHour: SpeedHour[];
+};
+
+export type LanInfo = {
+  enabled: boolean;
+  running: boolean;
+  url: string;
 };
 
 export type WifiInfo = {
@@ -117,6 +169,12 @@ export type AppSettings = {
   resetDay: number;
   minimizeToTray: boolean;
   autoCheckUpdates: boolean;
+  /** Price of one GB. 0 hides every money figure. */
+  ratePerGb: number;
+  currency: string;
+  speedtestEnabled: boolean;
+  lanEnabled: boolean;
+  lanToken: string;
 };
 
 export type UsageRange = "today" | "7d" | "30d" | "12m";
@@ -137,6 +195,10 @@ export const api = {
   dailyActivity: (days: number) =>
     invoke<DailyTotal[]>("get_daily_activity", { days }),
   recap: () => invoke<Recap>("get_recap"),
+  freeWindow: () => invoke<FreeWindow>("get_free_window"),
+  speedReport: () => invoke<SpeedReport>("get_speed_report"),
+  runSpeedtest: () => invoke<SpeedSample>("run_speedtest"),
+  lanInfo: () => invoke<LanInfo>("get_lan_info"),
   wifiInfo: () => invoke<WifiInfo | null>("get_wifi_info"),
   appMeta: () => invoke<AppMeta>("get_app_meta"),
   clearHistory: () => invoke<void>("clear_history"),

@@ -53,10 +53,13 @@ const RESET_DAYS = Array.from({ length: 28 }, (_, index) => String(index + 1));
 export function SettingsView() {
   const { settings, update } = useSettings();
   const { data: meta } = usePoll(api.appMeta, 60000);
+  const { data: lan } = usePoll(api.lanInfo, 5000);
   const { theme, setTheme } = useTheme();
 
   const [quotaGb, setQuotaGb] = useState("");
   const [resetDay, setResetDay] = useState("1");
+  const [ratePerGb, setRatePerGb] = useState("");
+  const [currency, setCurrency] = useState("PKR");
   const [saving, setSaving] = useState(false);
   const [autostart, setAutostart] = useState(false);
 
@@ -70,15 +73,20 @@ export function SettingsView() {
     if (!settings) return;
     setQuotaGb(settings.quotaGb > 0 ? String(settings.quotaGb) : "");
     setResetDay(String(settings.resetDay));
+    setRatePerGb(settings.ratePerGb > 0 ? String(settings.ratePerGb) : "");
+    setCurrency(settings.currency);
   }, [settings]);
 
   const saveCap = async () => {
     const parsed = Number.parseFloat(quotaGb);
+    const rate = Number.parseFloat(ratePerGb);
     setSaving(true);
     try {
       await update({
         quotaGb: Number.isFinite(parsed) && parsed > 0 ? parsed : 0,
         resetDay: Number(resetDay),
+        ratePerGb: Number.isFinite(rate) && rate > 0 ? rate : 0,
+        currency: currency.trim() || "PKR",
       });
       toast.success("Data cap saved");
     } catch {
@@ -156,6 +164,34 @@ export function SettingsView() {
         </CardContent>
       </Card>
 
+      <Card>
+        <CardHeader>
+          <CardTitle>Speed test</CardTitle>
+          <CardDescription>
+            Pulls a 2 MB test file once an hour so DataPulse can show when your
+            line is actually fast — roughly 48 MB a day.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="flex items-center justify-between gap-4">
+          <div className="flex flex-col gap-0.5">
+            <Label htmlFor="speedtest">Hourly speed test</Label>
+            <p className="text-xs text-muted-foreground">
+              Results are grouped by hour of day on Insights.
+            </p>
+          </div>
+          <Switch
+            id="speedtest"
+            checked={settings?.speedtestEnabled ?? false}
+            disabled={!settings}
+            onCheckedChange={(checked) => {
+              void update({ speedtestEnabled: checked }).then(() =>
+                toast.success(checked ? "Speed test enabled" : "Speed test disabled"),
+              );
+            }}
+          />
+        </CardContent>
+      </Card>
+
       <UpdateCard />
 
       <Card>
@@ -223,10 +259,60 @@ export function SettingsView() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Data cap</CardTitle>
+          <CardTitle>LAN dashboard</CardTitle>
+          <CardDescription>
+            Serves a read-only live view over your local network, so a phone on
+            the same Wi-Fi can watch usage. Anyone on the network who has the
+            link can open it.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-3">
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex flex-col gap-0.5">
+              <Label htmlFor="lan-dashboard">Share on the local network</Label>
+              <p className="text-xs text-muted-foreground">
+                Listening on port 7676 while enabled.
+              </p>
+            </div>
+            <Switch
+              id="lan-dashboard"
+              checked={settings?.lanEnabled ?? false}
+              disabled={!settings}
+              onCheckedChange={(checked) => {
+                void update({ lanEnabled: checked }).then(() =>
+                  toast.success(
+                    checked ? "LAN dashboard enabled" : "LAN dashboard disabled",
+                  ),
+                );
+              }}
+            />
+          </div>
+
+          {settings?.lanEnabled ? (
+            lan?.running ? (
+              <Input
+                readOnly
+                data-selectable="true"
+                value={lan.url}
+                aria-label="LAN dashboard URL"
+                onFocus={(event) => event.currentTarget.select()}
+                className="text-data text-xs"
+              />
+            ) : (
+              <p className="text-xs text-muted-foreground">
+                Could not listen on port 7676 — another program may be using it.
+              </p>
+            )
+          ) : null}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Data cap &amp; cost</CardTitle>
           <CardDescription>
             Track your usage against a monthly allowance. Reset day applies to
-            your billing cycle.
+            your billing cycle. Set a price per GB to see what that usage costs.
           </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
@@ -262,12 +348,38 @@ export function SettingsView() {
                 </SelectContent>
               </Select>
             </div>
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="rate">Price per GB</Label>
+              <Input
+                id="rate"
+                type="number"
+                min="0"
+                step="0.01"
+                inputMode="decimal"
+                placeholder="e.g. 15"
+                value={ratePerGb}
+                onChange={(event) => setRatePerGb(event.target.value)}
+                className="w-32"
+              />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="currency">Currency</Label>
+              <Input
+                id="currency"
+                maxLength={6}
+                placeholder="PKR"
+                value={currency}
+                onChange={(event) => setCurrency(event.target.value)}
+                className="w-24"
+              />
+            </div>
             <Button size="sm" onClick={saveCap} disabled={saving}>
               Save
             </Button>
           </div>
           <p className="text-xs text-muted-foreground">
-            Set the allowance to 0 or leave it empty to disable the data cap.
+            Set the allowance to 0 or leave it empty to disable the data cap. A
+            price of 0 hides every cost figure.
           </p>
         </CardContent>
       </Card>
