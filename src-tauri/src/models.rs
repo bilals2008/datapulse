@@ -178,6 +178,13 @@ pub struct LanInfo {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct TinyState {
+    pub visible: bool,
+    pub hotkey: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct TimelineBucket {
     pub ts: i64,
     pub rx: u64,
