@@ -12,6 +12,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { appInfo, logoUrl, type AppInfo } from "@/lib/apps";
 import { formatBytes, formatDateTime } from "@/lib/format";
 import { api, type Anomaly } from "@/lib/ipc";
 import { cn } from "@/lib/utils";
@@ -115,6 +116,21 @@ function AnomalyRow({
 }) {
   const Icon = KIND_ICONS[anomaly.kind] ?? TrendingUp;
 
+  // helper processes of one app (msedgewebview2.exe, its 6 children) collapse
+  // into a single line with their CPU and disk totals added up.
+  const apps = new Map<string, AppInfo & { cpu: number; diskWritten: number }>();
+  for (const proc of anomaly.procs) {
+    const info = appInfo(proc.name);
+    const seen = apps.get(info.label);
+    if (seen) {
+      seen.cpu += proc.cpu;
+      seen.diskWritten += proc.diskWritten;
+    } else {
+      apps.set(info.label, { ...info, cpu: proc.cpu, diskWritten: proc.diskWritten });
+    }
+  }
+  const topApps = [...apps.values()].sort((a, b) => b.cpu - a.cpu).slice(0, 3);
+
   return (
     <div className="flex items-start gap-3 rounded-lg border border-border/60 px-3 py-2.5">
       <span
@@ -137,17 +153,18 @@ function AnomalyRow({
             <span>baseline {formatBytes(anomaly.baseline)}/h</span>
           ) : null}
         </div>
-        {anomaly.procs.length > 0 ? (
+        {topApps.length > 0 ? (
           <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-muted-foreground">
             <span>Busy then:</span>
-            {anomaly.procs.slice(0, 3).map((proc, index) => (
+            {topApps.map((app) => (
               <span
-                key={`${proc.name}-${index}`}
+                key={app.label}
                 className="flex items-center gap-1"
-                title={`${formatBytes(proc.diskWritten)} written to disk since it launched`}
+                title={`${formatBytes(app.diskWritten)} written to disk since launch`}
               >
-                <span className="max-w-40 truncate">{proc.name}</span>
-                <span className="text-data">{proc.cpu.toFixed(0)}%</span>
+                <AppBadge app={app} />
+                <span className="max-w-40 truncate">{app.label}</span>
+                <span className="text-data">{Math.round(app.cpu)}%</span>
               </span>
             ))}
           </p>
@@ -163,5 +180,27 @@ function AnomalyRow({
         <X />
       </Button>
     </div>
+  );
+}
+
+function AppBadge({ app }: { app: AppInfo }) {
+  const [failed, setFailed] = useState(false);
+
+  if (!app.slug || failed) {
+    return (
+      <span className="flex size-3.5 shrink-0 items-center justify-center rounded-[4px] bg-muted text-[9px] font-semibold uppercase leading-none text-muted-foreground">
+        {app.label.slice(0, 1)}
+      </span>
+    );
+  }
+
+  return (
+    <img
+      src={logoUrl(app.slug)}
+      alt=""
+      loading="lazy"
+      onError={() => setFailed(true)}
+      className={cn("size-3.5 shrink-0 object-contain", app.mono && "dark:invert")}
+    />
   );
 }

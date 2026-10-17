@@ -30,17 +30,18 @@ usage. Windows-first (Wi-Fi details come from `netsh`).
 ## Layout
 
 ```
-src-tauri/src/   models, error, state, net (counters), wifi (netsh), procs (busiest processes),
+src-tauri/src/   models, error, state, net (counters), wifi (netsh), procs (busiest processes + pid→app),
                  db (SQLite), collector (thread + `pulse-tick`), analytics (forecast, anomaly,
                  quiet window), speed (ISP speed test), hud (tray tint + taskbar progress),
-                 lan (LAN dashboard server), commands (IPC), lib
+                 lan (LAN dashboard server), etw (per-app traffic), conns (socket owner table),
+                 icons (exe icon → data URI), commands (IPC), lib
 src/lib/         ipc.ts (typed invoke wrappers + shared types), format.ts
 src/hooks/       use-poll, use-settings (SettingsProvider), use-live-stats (LiveStatsProvider),
                  use-updater (UpdaterProvider + auto-check on startup)
 src/components/  app-sidebar, quota-card, network-card, usage-chart, live-sparkline,
                  free-window-card, speed-card, update-card, info-field, theme-toggle,
                  tiny-hud, wrapped-card + wrapped-dialog, ui/* (shadcn)
-src/pages/       dashboard, usage, insights, interfaces, settings
+src/pages/       dashboard, usage, apps, insights, interfaces, settings
 src/index.css    single source of truth for design tokens
 scripts/         bump-version.mjs (keeps every version field in sync)
 ```
@@ -64,6 +65,13 @@ scripts/         bump-version.mjs (keeps every version field in sync)
 - **Rust ↔ TS contract:** serde `camelCase`; command names are `snake_case`. Keep
   `src/lib/ipc.ts` types in sync with `src-tauri/src/models.rs`. The frontend calls
   the backend only through `api` in `src/lib/ipc.ts`.
+- Tauri builds the config windows *before* the `setup` hook, so a page can
+  invoke a command before `app.manage(state)` runs and be answered with `state
+  not managed`. That call must not be trusted to be the only one — `use-settings`
+  retries its fetch for exactly this reason, and `BootSignal` waits on it before
+  the splash hands over. Do not try to fix it by setting `"create": false` and
+  building the windows inside `setup`: WebView2 refuses with `0x8007139F` and the
+  app dies on launch.
 - No code comments unless they explain something non-obvious. Keep files focused.
 
 ## Behaviour
@@ -78,7 +86,20 @@ scripts/         bump-version.mjs (keeps every version field in sync)
 - The hourly speed test (`speed.rs`) is opt-in and pulls ~2 MB per run. The LAN
   dashboard (`lan.rs`) is opt-in, binds the machine's LAN address, and needs the
   token in the URL path. Both are off by default.
-- Navigation is state-based (`ViewId`), keyboard shortcuts `Ctrl/Cmd + 1..5`.
+- Navigation is state-based (`ViewId`), keyboard shortcuts `Ctrl/Cmd + 1..6`.
+- **Applications** is a view (`src/pages/apps.tsx`): the ranked per-program
+  traffic and, for the selected row, its hourly chart. Windows only hands out
+  per-process traffic through Event Tracing for Windows, so `etw.rs` runs a
+  real-time `Microsoft-Windows-TCPIP` session and needs an elevated process;
+  unelevated it silently records nothing and the page says so. Two details
+  worth not rediscovering: `StartTraceW` needs a properties buffer that holds
+  room past the struct for the session name (otherwise ERROR_BAD_LENGTH), and
+  the session GUID has to be fresh on every launch (otherwise
+  ERROR_ALREADY_EXISTS). Send events name the owner in the event header;
+  receive events come from `System`, so `conns.rs` snapshots
+  `GetExtendedTcpTable`/`GetExtendedUdpTable` to map the local endpoint back to
+  a process. `icons.rs` reads the icon out of the executable's PE resources, so
+  no logo service is involved.
 - The tiny HUD is a second window (`label: "tiny"`, 208×60, always on top) built
   by `src/components/tiny-hud.tsx`: live rates with a level meter per direction,
   and the session total. `Ctrl+Alt+D` (`tauri-plugin-global-shortcut`),

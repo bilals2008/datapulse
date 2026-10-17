@@ -13,19 +13,6 @@ type SettingsContextValue = {
   update: (patch: Partial<AppSettings>) => Promise<void>;
 };
 
-const DEFAULT_SETTINGS: AppSettings = {
-  refreshMs: 1000,
-  quotaGb: 0,
-  resetDay: 1,
-  minimizeToTray: false,
-  autoCheckUpdates: true,
-  ratePerGb: 0,
-  currency: "PKR",
-  speedtestEnabled: false,
-  lanEnabled: false,
-  lanToken: "",
-};
-
 const SettingsContext = createContext<SettingsContextValue>({
   settings: null,
   update: async () => {},
@@ -36,19 +23,35 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     let active = true;
-    api
-      .settings()
-      .then((value) => {
+    let timer = 0;
+    let delay = 250;
+
+    const load = async () => {
+      try {
+        const value = await api.settings();
         if (active) setSettings(value);
-      })
-      .catch(() => {});
+      } catch {
+        // Retried until it answers: giving up would leave every control gated on
+        // `settings` disabled for the rest of the session.
+        if (active) {
+          timer = window.setTimeout(load, delay);
+          delay = Math.min(delay * 2, 5000);
+        }
+      }
+    };
+
+    void load();
+
     return () => {
       active = false;
+      window.clearTimeout(timer);
     };
   }, []);
 
   const update = async (patch: Partial<AppSettings>) => {
-    const base = settings ?? DEFAULT_SETTINGS;
+    // Never built on defaults: that would write the other preferences back as
+    // zeros/false over whatever the device actually has.
+    const base = settings ?? (await api.settings());
     const next = await api.saveSettings({ ...base, ...patch });
     setSettings(next);
   };

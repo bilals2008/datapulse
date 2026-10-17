@@ -12,6 +12,7 @@ import { UpdaterProvider } from "@/hooks/use-updater";
 import { formatRate, isActiveRate } from "@/lib/format";
 import { api } from "@/lib/ipc";
 import { cn } from "@/lib/utils";
+import { AppsView } from "@/pages/apps";
 import { DashboardView } from "@/pages/dashboard";
 import { InsightsView } from "@/pages/insights";
 import { InterfacesView } from "@/pages/interfaces";
@@ -24,6 +25,10 @@ const TITLES: Record<ViewId, { title: string; subtitle: string }> = {
     subtitle: "Live throughput and today's usage",
   },
   usage: { title: "Usage", subtitle: "Historical transfer volume" },
+  apps: {
+    title: "Applications",
+    subtitle: "Which programs used the data",
+  },
   insights: {
     title: "Insights",
     subtitle: "Anomalies and usage forecasts",
@@ -35,9 +40,10 @@ const TITLES: Record<ViewId, { title: string; subtitle: string }> = {
 const SHORTCUTS: Record<string, ViewId> = {
   "1": "dashboard",
   "2": "usage",
-  "3": "insights",
-  "4": "interfaces",
-  "5": "settings",
+  "3": "apps",
+  "4": "insights",
+  "5": "interfaces",
+  "6": "settings",
 };
 
 function HeaderStats() {
@@ -154,6 +160,7 @@ function App() {
                       />
                     ) : null}
                     {view === "usage" ? <UsageView /> : null}
+                    {view === "apps" ? <AppsView /> : null}
                     {view === "insights" ? (
                       <InsightsView onOpenSettings={() => setView("settings")} />
                     ) : null}

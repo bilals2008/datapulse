@@ -18,6 +18,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `Ctrl+Alt+D`, the tray menu or Settings shows and hides it, the shortcut is rebindable, and a relaunch restores whether it was open
 - Double-click opens the full window
 
+### Fixed
+
+#### Settings
+
+- Minimise to tray, hourly speed test, LAN dashboard and automatic update checks were stuck greyed out with a not-allowed cursor in the installed app: the settings request could be answered before the backend finished starting, and the one attempt it got was thrown away
+- The settings request now retries until it is answered, so the window also stops waiting out the splash delay on launch
+- Saving the data cap no longer writes default values over preferences stored on the device
+
 ---
 
 ## [0.2.0] - October 16, 2026

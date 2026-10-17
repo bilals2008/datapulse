@@ -1,4 +1,5 @@
 import {
+  AppWindow,
   ArrowDown,
   ArrowUp,
   ChartColumn,
@@ -19,11 +20,18 @@ import { useLiveStats } from "@/hooks/use-live-stats";
 import { formatBytes } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
-export type ViewId = "dashboard" | "usage" | "insights" | "interfaces" | "settings";
+export type ViewId =
+  | "dashboard"
+  | "usage"
+  | "apps"
+  | "insights"
+  | "interfaces"
+  | "settings";
 
 const NAV: { id: ViewId; label: string; icon: LucideIcon }[] = [
   { id: "dashboard", label: "Overview", icon: Gauge },
   { id: "usage", label: "Usage", icon: ChartColumn },
+  { id: "apps", label: "Applications", icon: AppWindow },
   { id: "insights", label: "Insights", icon: Telescope },
   { id: "interfaces", label: "Interfaces", icon: Network },
   { id: "settings", label: "Settings", icon: SettingsIcon },
