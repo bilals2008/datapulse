@@ -1,4 +1,4 @@
-use serde::{Deserialize, Serialize};
+﻿use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -239,7 +239,7 @@ pub struct Wrapped {
     pub rx: u64,
     pub tx: u64,
     pub busiest_day: Option<BusiestDay>,
-    /// Local hour of day (0–23) with the most transfer across the year.
+    /// Local hour of day (0â€“23) with the most transfer across the year.
     pub busiest_hour: Option<u32>,
     pub top_interface: Option<InterfaceTotal>,
     pub active_days: u32,
@@ -255,37 +255,7 @@ pub struct Recap {
     pub delta_percent: f64,
     pub avg_daily: u64,
     pub busiest_day: Option<BusiestDay>,
-    /// Local hour of day (0–23) with the most transfer this week.
+    /// Local hour of day (0â€“23) with the most transfer this week.
     pub busiest_hour: Option<u32>,
     pub top_interface: Option<InterfaceTotal>,
-}
-
-/// One application and the traffic attributed to it over the requested window.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct AppUsage {
-    /// Stable key: the executable path, lowercased.
-    pub key: String,
-    pub name: String,
-    pub path: String,
-    pub icon: String,
-    pub rx: u64,
-    pub tx: u64,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct AppReport {
-    /// `false` when the ETW session could not start (needs admin); the page
-    /// then explains that instead of showing empty numbers.
-    pub tracked: bool,
-    pub apps: Vec<AppUsage>,
-    pub rx: u64,
-    pub tx: u64,
-    /// Packets the trace session has seen this launch.
-    pub packets: u64,
-    /// Packets that reached an application.
-    pub attributed: u64,
-    /// Packets whose owning process was unknown (usually a short-lived socket).
-    pub orphans: u64,
 }

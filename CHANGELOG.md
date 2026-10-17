@@ -18,6 +18,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `Ctrl+Alt+D`, the tray menu or Settings shows and hides it, the shortcut is rebindable, and a relaunch restores whether it was open
 - Double-click opens the full window
 
+### Removed
+
+#### Applications
+
+- The Applications view is gone. Windows only reports per-application traffic through Event Tracing for Windows, which needs an elevated session and does not hand out usable numbers on Windows 10 anyway, so the page could only ever be empty
+
 ### Fixed
 
 #### Settings

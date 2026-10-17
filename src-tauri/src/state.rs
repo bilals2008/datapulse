@@ -56,8 +56,6 @@ pub struct AppState {
     pub wifi: Mutex<Option<WifiInfo>>,
     pub acc: Mutex<HashMap<String, (u64, u64)>>,
     pub totals: Mutex<HashMap<String, (u64, u64)>>,
-    /// `false` when the per-app ETW session could not start (needs admin).
-    pub apps_tracked: std::sync::atomic::AtomicBool,
     pub db_path: String,
     pub tray: Mutex<Option<TrayIcon>>,
     pub lan: Mutex<Option<LanServer>>,

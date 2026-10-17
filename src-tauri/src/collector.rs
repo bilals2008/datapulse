@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::sync::Arc;
 use std::thread;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
@@ -9,15 +9,13 @@ use tauri::{AppHandle, Emitter};
 use crate::analytics::{self, HourRow};
 use crate::models::{InterfaceSnapshot, TickPayload};
 use crate::state::AppState;
-use crate::{db, etw, hud, icons, net, procs, wifi};
+use crate::{db, hud, net, procs, wifi};
 
 const FLUSH_INTERVAL: Duration = Duration::from_secs(5);
 const WIFI_INTERVAL: Duration = Duration::from_secs(15);
 const HUD_INTERVAL: Duration = Duration::from_secs(15);
 const ANOMALY_INTERVAL: Duration = Duration::from_secs(300);
 const ANOMALY_LOOKBACK: i64 = 30 * 86_400;
-/// Per-app rows are much denser than the per-interface ones, so 90 days.
-const APP_RETENTION_SECS: i64 = 90 * 86_400;
 const MAX_DELTA_RATE: f64 = 1_000_000_000.0;
 
 fn now_secs() -> i64 {
@@ -162,46 +160,6 @@ pub fn flush(state: &Arc<AppState>) {
     for (iface, (rx, tx)) in totals {
         let _ = db::upsert_cumulative(&conn, &iface, rx, tx, ts);
     }
-
-    flush_apps(&conn, ts_min);
-}
-
-/// Writes the bytes ETW attributed per process, resolving the pids to
-/// executables once per flush.
-fn flush_apps(conn: &rusqlite::Connection, ts_min: i64) {
-    let by_pid = etw::drain();
-    if by_pid.is_empty() {
-        return;
-    }
-
-    let known = db::app_meta(conn).unwrap_or_default();
-    let pids: HashSet<u32> = by_pid.keys().copied().collect();
-    let resolved = procs::resolve(&pids);
-
-    for (pid, (rx, tx)) in by_pid {
-        if rx == 0 && tx == 0 {
-            continue;
-        }
-        // A process that exited before the flush keeps its bytes under the name
-        // the pid resolved to, or a plain "unknown" row when even that fails.
-        let app = match resolved.get(&pid) {
-            Some(app) => app,
-            None => continue,
-        };
-
-        if !known.contains_key(&app.key) {
-            let icon = if app.path.is_empty() {
-                String::new()
-            } else {
-                icons::data_uri(&app.path)
-            };
-            let _ = db::save_app_meta(conn, &app.key, &app.name, &app.path, &icon);
-        }
-        let _ = db::upsert_app_usage(conn, ts_min, &app.key, rx, tx);
-    }
-
-    let cutoff = now_secs() - APP_RETENTION_SECS;
-    let _ = db::prune_app_usage(conn, cutoff);
 }
 
 fn scan_anomalies(app: &AppHandle, state: &Arc<AppState>) {
