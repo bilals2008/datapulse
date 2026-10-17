@@ -232,6 +232,7 @@
         *::before,
         *::after {
             animation-duration: 0.01ms !important;
+            animation-delay: 0ms !important;
             animation-iteration-count: 1 !important;
             transition-duration: 0.01ms !important;
         }
@@ -243,4 +244,14 @@
     font-variant-numeric: tabular-nums;
     font-feature-settings: "tnum" 1;
     letter-spacing: -0.012em;
+}
+
+@keyframes bar-grow {
+    from {
+        height: 0;
+    }
+}
+
+@utility animate-bar-grow {
+    animation: bar-grow 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
 }

@@ -9,6 +9,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { usePoll } from "@/hooks/use-poll";
 import { formatBytes, formatHour, formatHourRange } from "@/lib/format";
 import { api } from "@/lib/ipc";
@@ -61,18 +62,30 @@ export function FreeWindowCard() {
           </span>
         </div>
 
-        <div className="flex h-20 items-end gap-[2px]" aria-hidden="true">
-          {data.hours.map((hour) => (
-            <div
-              key={hour.hour}
-              title={`${formatHour(hour.hour)} · ${formatBytes(hour.bytes)}`}
-              style={{ height: `${Math.max((hour.bytes / peak) * 100, 2)}%` }}
-              className={cn(
-                "flex-1 rounded-[2px]",
-                inWindow(hour.hour) ? "bg-primary" : "bg-muted-foreground/25",
-              )}
-            />
-          ))}
+        <div className="overflow-x-auto">
+          <div className="flex h-20 items-end gap-[2px]" aria-hidden="true">
+            {data.hours.map((hour, index) => (
+              <Tooltip key={hour.hour}>
+                <TooltipTrigger asChild>
+                  <div className="flex h-full min-w-3 flex-1 items-end">
+                    <div
+                      style={{
+                        height: `${Math.max((hour.bytes / peak) * 100, 2)}%`,
+                        animationDelay: `${index * 12}ms`,
+                      }}
+                      className={cn(
+                        "animate-bar-grow w-full rounded-[2px]",
+                        inWindow(hour.hour) ? "bg-primary" : "bg-muted-foreground/25",
+                      )}
+                    />
+                  </div>
+                </TooltipTrigger>
+                <TooltipContent side="top" sideOffset={6}>
+                  {formatHour(hour.hour)} · {formatBytes(hour.bytes)}
+                </TooltipContent>
+              </Tooltip>
+            ))}
+          </div>
         </div>
 
         <p className="text-xs text-muted-foreground">{data.advice}</p>

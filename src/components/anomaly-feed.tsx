@@ -81,7 +81,8 @@ export function AnomalyFeed() {
       <CardContent
         className={cn(
           "flex flex-1 flex-col gap-2",
-          count > 0 && "max-h-96 overflow-y-auto",
+          // more than 4 rows scrolls inside the card instead of growing it
+          count > 4 && "max-h-[19rem] overflow-y-auto",
         )}
       >
         {items === null ? (
