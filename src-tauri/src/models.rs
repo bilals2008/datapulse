@@ -259,3 +259,33 @@ pub struct Recap {
     pub busiest_hour: Option<u32>,
     pub top_interface: Option<InterfaceTotal>,
 }
+
+/// One application and the traffic attributed to it over the requested window.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AppUsage {
+    /// Stable key: the executable path, lowercased.
+    pub key: String,
+    pub name: String,
+    pub path: String,
+    pub icon: String,
+    pub rx: u64,
+    pub tx: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AppReport {
+    /// `false` when the ETW session could not start (needs admin); the page
+    /// then explains that instead of showing empty numbers.
+    pub tracked: bool,
+    pub apps: Vec<AppUsage>,
+    pub rx: u64,
+    pub tx: u64,
+    /// Packets the trace session has seen this launch.
+    pub packets: u64,
+    /// Packets that reached an application.
+    pub attributed: u64,
+    /// Packets whose owning process was unknown (usually a short-lived socket).
+    pub orphans: u64,
+}

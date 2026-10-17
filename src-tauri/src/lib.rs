@@ -13,9 +13,12 @@ use tauri_plugin_global_shortcut::{GlobalShortcutExt, ShortcutState};
 mod analytics;
 mod collector;
 mod commands;
+mod conns;
 mod db;
 mod error;
+mod etw;
 mod hud;
+mod icons;
 mod lan;
 mod models;
 mod net;
@@ -418,6 +421,7 @@ pub fn run() {
                 wifi: Mutex::new(None),
                 acc: Mutex::new(Default::default()),
                 totals: Mutex::new(Default::default()),
+                apps_tracked: std::sync::atomic::AtomicBool::new(etw::spawn()),
                 db_path: db_path_str,
                 tray: Mutex::new(None),
                 lan: Mutex::new(None),
@@ -498,6 +502,8 @@ pub fn run() {
             commands::set_settings,
             commands::get_usage_series,
             commands::get_interface_totals,
+            commands::get_app_usage,
+            commands::get_app_series,
             commands::get_quota_status,
             commands::get_wifi_info,
             commands::get_app_meta,
@@ -523,6 +529,7 @@ pub fn run() {
             if let Some(state) = handle.try_state::<Arc<AppState>>() {
                 collector::flush(&state);
             }
+            etw::stop();
         }
     });
 }

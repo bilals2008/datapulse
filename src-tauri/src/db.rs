@@ -57,7 +57,20 @@ pub fn open(path: &std::path::Path) -> Result<Connection, AppError> {
             ok         INTEGER NOT NULL DEFAULT 1,
             error      TEXT NOT NULL DEFAULT ''
          );
-         CREATE INDEX IF NOT EXISTS idx_speed_ts ON speed_samples (ts DESC);",
+         CREATE INDEX IF NOT EXISTS idx_speed_ts ON speed_samples (ts DESC);
+         CREATE TABLE IF NOT EXISTS app_usage_minute (
+            ts_min INTEGER NOT NULL,
+            app    TEXT NOT NULL,
+            rx     INTEGER NOT NULL DEFAULT 0,
+            tx     INTEGER NOT NULL DEFAULT 0,
+            PRIMARY KEY (ts_min, app)
+         );
+         CREATE TABLE IF NOT EXISTS apps (
+            key  TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            path TEXT NOT NULL DEFAULT '',
+            icon TEXT NOT NULL DEFAULT ''
+         );",
     )?;
 
     ensure_column(&conn, "anomalies", "procs", "TEXT NOT NULL DEFAULT '[]'")?;
@@ -165,8 +178,122 @@ pub fn interface_totals(
     Ok(out)
 }
 
-pub fn cumulative(conn: &Connection) -> Result<HashMap<String, (u64, u64, i64)>, AppError> {
-    let mut stmt = conn.prepare("SELECT iface, rx, tx, ts FROM iface_cumulative")?;
+pub fn upsert_app_usage(
+    conn: &Connection,
+    ts_min: i64,
+    app: &str,
+    rx: u64,
+    tx: u64,
+) -> Result<(), AppError> {
+    conn.execute(
+        "INSERT INTO app_usage_minute (ts_min, app, rx, tx) VALUES (?1, ?2, ?3, ?4)
+         ON CONFLICT(ts_min, app) DO UPDATE SET
+            rx = app_usage_minute.rx + excluded.rx,
+            tx = app_usage_minute.tx + excluded.tx",
+        params![ts_min, app, rx as i64, tx as i64],
+    )?;
+    Ok(())
+}
+
+pub fn app_totals(conn: &Connection, since: i64) -> Result<Vec<(String, u64, u64)>, AppError> {
+    let mut stmt = conn.prepare(
+        "SELECT app, COALESCE(SUM(rx), 0), COALESCE(SUM(tx), 0)
+         FROM app_usage_minute
+         WHERE ts_min >= ?1
+         GROUP BY app
+         ORDER BY SUM(rx) + SUM(tx) DESC",
+    )?;
+    let rows = stmt.query_map(params![since], |row| {
+        Ok((
+            row.get::<_, String>(0)?,
+            row.get::<_, i64>(1)?,
+            row.get::<_, i64>(2)?,
+        ))
+    })?;
+
+    let mut out = Vec::new();
+    for row in rows {
+        let (app, rx, tx) = row?;
+        out.push((app, rx.max(0) as u64, tx.max(0) as u64));
+    }
+    Ok(out)
+}
+
+/// One application's history, bucketed the same way as the machine totals.
+pub fn app_series(
+    conn: &Connection,
+    app: &str,
+    format: &str,
+    since: i64,
+    tz_offset: i32,
+) -> Result<HashMap<String, (u64, u64)>, AppError> {
+    let mut stmt = conn.prepare(
+        "SELECT strftime(?1, ts_min + ?2, 'unixepoch') AS bucket,
+                COALESCE(SUM(rx), 0), COALESCE(SUM(tx), 0)
+         FROM app_usage_minute
+         WHERE ts_min >= ?3 AND app = ?4
+         GROUP BY bucket",
+    )?;
+    let rows = stmt.query_map(params![format, tz_offset, since, app], |row| {
+        Ok((
+            row.get::<_, String>(0)?,
+            row.get::<_, i64>(1)?,
+            row.get::<_, i64>(2)?,
+        ))
+    })?;
+
+    let mut map = HashMap::new();
+    for row in rows {
+        let (key, rx, tx) = row?;
+        map.insert(key, (rx.max(0) as u64, tx.max(0) as u64));
+    }
+    Ok(map)
+}
+
+/// Display metadata for known application keys: `(name, path, icon)`.
+pub fn app_meta(conn: &Connection) -> Result<HashMap<String, (String, String, String)>, AppError> {
+    let mut stmt = conn.prepare("SELECT key, name, path, icon FROM apps")?;
+    let rows = stmt.query_map([], |row| {
+        Ok((
+            row.get::<_, String>(0)?,
+            row.get::<_, String>(1)?,
+            row.get::<_, String>(2)?,
+            row.get::<_, String>(3)?,
+        ))
+    })?;
+
+    let mut map = HashMap::new();
+    for row in rows {
+        let (key, name, path, icon) = row?;
+        map.insert(key, (name, path, icon));
+    }
+    Ok(map)
+}
+
+pub fn save_app_meta(
+    conn: &Connection,
+    key: &str,
+    name: &str,
+    path: &str,
+    icon: &str,
+) -> Result<(), AppError> {
+    conn.execute(
+        "INSERT INTO apps (key, name, path, icon) VALUES (?1, ?2, ?3, ?4)
+         ON CONFLICT(key) DO UPDATE SET
+            name = excluded.name, path = excluded.path, icon = excluded.icon",
+        params![key, name, path, icon],
+    )?;
+    Ok(())
+}
+
+/// Per-app rows are far denser than the interface rows, so they are pruned
+/// sooner.
+pub fn prune_app_usage(conn: &Connection, since: i64) -> Result<(), AppError> {
+    conn.execute("DELETE FROM app_usage_minute WHERE ts_min < ?1", params![since])?;
+    Ok(())
+}
+
+pub fn cumulative(conn: &Connection) -> Result<HashMap<String, (u64, u64, i64)>, AppError> {    let mut stmt = conn.prepare("SELECT iface, rx, tx, ts FROM iface_cumulative")?;
     let rows = stmt.query_map([], |row| {
         Ok((
             row.get::<_, String>(0)?,
@@ -200,7 +327,10 @@ pub fn upsert_cumulative(
 }
 
 pub fn clear_all(conn: &Connection) -> Result<(), AppError> {
-    conn.execute_batch("DELETE FROM usage_minute; DELETE FROM iface_cumulative;")?;
+    conn.execute_batch(
+        "DELETE FROM usage_minute; DELETE FROM iface_cumulative;
+         DELETE FROM app_usage_minute; DELETE FROM apps;",
+    )?;
     Ok(())
 }
 

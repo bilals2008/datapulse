@@ -202,6 +202,31 @@ export type AppSettings = {
 
 export type UsageRange = "today" | "7d" | "30d" | "12m";
 
+export type AppUsage = {
+  /** Stable key: the executable path, lowercased. */
+  key: string;
+  name: string;
+  path: string;
+  /** `data:image/x-icon` URI read out of the executable, or empty. */
+  icon: string;
+  rx: number;
+  tx: number;
+};
+
+export type AppReport = {
+  /** False when the ETW session could not start (DataPulse needs admin). */
+  tracked: boolean;
+  apps: AppUsage[];
+  rx: number;
+  tx: number;
+  /** Packets the trace session has seen this launch. */
+  packets: number;
+  /** Packets that reached an application. */
+  attributed: number;
+  /** Packets whose owning process was unknown. */
+  orphans: number;
+};
+
 export const api = {
   snapshot: () => invoke<TickPayload>("get_snapshot"),
   settings: () => invoke<AppSettings>("get_settings"),
@@ -211,6 +236,9 @@ export const api = {
     invoke<UsageSeries>("get_usage_series", { range }),
   interfaceTotals: (days: number) =>
     invoke<InterfaceTotal[]>("get_interface_totals", { days }),
+  appUsage: (range: UsageRange) => invoke<AppReport>("get_app_usage", { range }),
+  appSeries: (app: string, range: UsageRange) =>
+    invoke<UsageSeries>("get_app_series", { app, range }),
   quotaStatus: () => invoke<QuotaStatus>("get_quota_status"),
   anomalies: (limit = 50) => invoke<Anomaly[]>("get_anomalies", { limit }),
   dismissAnomaly: (id: number) => invoke<void>("dismiss_anomaly", { id }),

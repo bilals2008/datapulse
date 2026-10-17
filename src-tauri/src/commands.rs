@@ -1,5 +1,6 @@
 use chrono::{Datelike, Duration as ChronoDuration, Local, TimeZone};
 use std::collections::HashMap;
+use std::sync::atomic::Ordering;
 use std::sync::Arc;
 use tauri::{AppHandle, Manager, State};
 
@@ -7,12 +8,12 @@ use crate::analytics;
 use crate::error::AppError;
 use crate::lan::LanServer;
 use crate::models::{
-    Anomaly, AppMeta, BusiestDay, DailyTotal, FreeWindow, HourBytes, InterfaceTotal, LanInfo,
-    QuotaStatus, Recap, SpeedHour, SpeedReport, SpeedSample, TickPayload, Timeline, TimelineBucket,
-    UsageBucket, UsageSeries, Wrapped,
+    Anomaly, AppMeta, AppReport, AppUsage, BusiestDay, DailyTotal, FreeWindow, HourBytes,
+    InterfaceTotal, LanInfo, QuotaStatus, Recap, SpeedHour, SpeedReport, SpeedSample, TickPayload,
+    Timeline, TimelineBucket, UsageBucket, UsageSeries, Wrapped,
 };
 use crate::state::{AppState, Config};
-use crate::{db, net, speed};
+use crate::{db, etw, net, speed};
 
 type Res<T> = Result<T, AppError>;
 
@@ -119,6 +120,88 @@ pub fn usage_series(state: &Arc<AppState>, range: &str) -> Res<UsageSeries> {
         buckets,
         rx: rx_total,
         tx: tx_total,
+    })
+}
+
+#[tauri::command]
+pub fn get_app_usage(state: State<'_, Arc<AppState>>, range: String) -> Res<AppReport> {
+    let plan = plan_series(&range);
+    let conn = state.db.lock().unwrap();
+    let rows = db::app_totals(&conn, plan.since)?;
+    let meta = db::app_meta(&conn)?;
+
+    let mut apps = Vec::with_capacity(rows.len());
+    let mut rx_total = 0_u64;
+    let mut tx_total = 0_u64;
+
+    for (key, rx, tx) in rows {
+        let (name, path, icon) = meta.get(&key).cloned().unwrap_or_else(|| {
+            let name = key
+                .rsplit(['\\', '/'])
+                .next()
+                .unwrap_or(key.as_str())
+                .to_string();
+            (name, String::new(), String::new())
+        });
+        rx_total += rx;
+        tx_total += tx;
+        apps.push(AppUsage {
+            key,
+            name,
+            path,
+            icon,
+            rx,
+            tx,
+        });
+    }
+
+    let (packets, attributed, orphans) = etw::stats();
+    Ok(AppReport {
+        tracked: state.apps_tracked.load(Ordering::Relaxed),
+        apps,
+        rx: rx_total,
+        tx: tx_total,
+        packets,
+        attributed,
+        orphans,
+    })
+}
+
+#[tauri::command]
+pub fn get_app_series(
+    state: State<'_, Arc<AppState>>,
+    app: String,
+    range: String,
+) -> Res<UsageSeries> {
+    let plan = plan_series(&range);
+    let conn = state.db.lock().unwrap();
+    let map = db::app_series(
+        &conn,
+        &app,
+        plan.format,
+        plan.since,
+        analytics::local_offset_secs(),
+    )?;
+
+    let mut buckets = Vec::with_capacity(plan.keys.len());
+    let mut rx = 0_u64;
+    let mut tx = 0_u64;
+    for key in plan.keys {
+        let (bucket_rx, bucket_tx) = map.get(&key).copied().unwrap_or((0, 0));
+        rx += bucket_rx;
+        tx += bucket_tx;
+        buckets.push(UsageBucket {
+            key,
+            rx: bucket_rx,
+            tx: bucket_tx,
+        });
+    }
+
+    Ok(UsageSeries {
+        range: plan.range,
+        buckets,
+        rx,
+        tx,
     })
 }
 

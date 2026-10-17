@@ -1,6 +1,7 @@
+use std::collections::{HashMap, HashSet};
 use std::thread;
 
-use sysinfo::{ProcessesToUpdate, System};
+use sysinfo::{Pid, ProcessRefreshKind, ProcessesToUpdate, System};
 
 use crate::models::ProcessSample;
 
@@ -36,3 +37,61 @@ pub fn top_processes() -> Vec<ProcessSample> {
     samples.truncate(TOP_N);
     samples
 }
+
+/// An application behind a process id.
+#[derive(Debug, Clone)]
+pub struct AppIdentity {
+    pub key: String,
+    pub name: String,
+    pub path: String,
+}
+
+/// Maps the process ids seen in a network tick to the application behind them.
+///
+/// Only the requested pids are refreshed, so this stays cheap enough for the
+/// collector's flush interval.
+pub fn resolve(pids: &HashSet<u32>) -> HashMap<u32, AppIdentity> {
+    let mut out = HashMap::new();
+    if pids.is_empty() {
+        return out;
+    }
+
+    let list: Vec<Pid> = pids.iter().map(|pid| Pid::from(*pid as usize)).collect();
+    let mut system = System::new();
+    system.refresh_processes_specifics(
+        ProcessesToUpdate::Some(&list),
+        true,
+        ProcessRefreshKind::nothing(),
+    );
+
+    for pid in pids.iter().copied() {
+        let Some(process) = system.process(Pid::from(pid as usize)) else {
+            continue;
+        };
+        let name = process.name().to_string_lossy().into_owned();
+        if name.is_empty() {
+            continue;
+        }
+        let path = process.exe().map(|exe| exe.to_string_lossy().into_owned());
+        out.insert(pid, identity(name, path.as_deref()));
+    }
+    out
+}
+
+/// Applications are keyed by their executable path so two copies of the same
+/// program stay one row; processes without a path fall back to their name.
+pub fn identity(name: String, path: Option<&str>) -> AppIdentity {
+    match path.filter(|p| !p.is_empty()) {
+        Some(path) => AppIdentity {
+            key: path.to_lowercase(),
+            name,
+            path: path.to_string(),
+        },
+        None => AppIdentity {
+            key: name.to_lowercase(),
+            name,
+            path: String::new(),
+        },
+    }
+}
+

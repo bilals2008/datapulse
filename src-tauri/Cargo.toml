@@ -4,6 +4,8 @@ version = "0.2.0"
 description = "A Tauri App"
 authors = ["you"]
 edition = "2024"
+# src/bin/ holds throwaway probes; `cargo run` must still pick the app.
+default-run = "datapulse"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -31,6 +33,15 @@ reqwest = { version = "0.13", features = ["blocking"] }
 rusqlite = { version = "0.40.2", features = ["bundled"] }
 thiserror = "2.0.21"
 chrono = { version = "0.4.45", features = ["clock"] }
+
+[target.'cfg(windows)'.dependencies]
+windows = { version = "0.62", features = [
+    "Win32_Foundation",
+    "Win32_NetworkManagement_IpHelper",
+    "Win32_Networking_WinSock",
+    "Win32_System_Diagnostics_Etw",
+    "Win32_System_Time",
+] }
 
 
 # Read the optimization guideline for more details: https://tauri.app/concept/size/#cargo-configuration
