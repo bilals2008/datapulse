@@ -67,8 +67,8 @@
     --input: oklch(0.882 0.015 82);
     --ring: oklch(0.428 0.068 158);
 
-    --download: oklch(0.600 0.078 205);
-    --upload: oklch(0.665 0.098 55);
+    --download: oklch(0.55 0.13 150);
+    --upload: oklch(0.62 0.15 55);
     --success: oklch(0.555 0.092 150);
     --warning: oklch(0.700 0.122 74);
 
@@ -101,8 +101,8 @@
     --input: oklch(1 0 0 / 13%);
     --ring: oklch(0.742 0.084 158);
 
-    --download: oklch(0.720 0.072 205);
-    --upload: oklch(0.752 0.092 60);
+    --download: #8FD5A8;
+    --upload: #F0A05A;
     --success: oklch(0.700 0.088 150);
     --warning: oklch(0.782 0.112 78);
 }
