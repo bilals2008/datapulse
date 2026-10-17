@@ -8,6 +8,9 @@ name: Release
 # platform and uploads the bundles + latest.json to a DRAFT GitHub release. Open
 # the draft, review it, and click "Publish release" to ship.
 #
+# Write the vX.Y.Z section in CHANGELOG.md before running: it becomes both the
+# release body and latest.json's notes, which is the "What's new" the app shows.
+#
 # Publishing the draft is what makes the update live: the in-app updater reads
 # releases/latest/download/latest.json, which only resolves to published
 # (non-draft, non-prerelease) releases.
@@ -180,6 +183,18 @@ jobs:
             fi
           done
 
+      - name: Read release notes from CHANGELOG.md
+        id: notes
+        shell: bash
+        run: |
+          set -euo pipefail
+          body="$(node scripts/release-notes.mjs)"
+          {
+            echo 'body<<EOF'
+            echo "$body"
+            echo 'EOF'
+          } >> "$GITHUB_OUTPUT"
+
       - name: Build and publish draft release
         uses: tauri-apps/tauri-action@v1
         env:
@@ -189,7 +204,7 @@ jobs:
         with:
           tagName: v__VERSION__
           releaseName: "DataPulse v__VERSION__"
-          releaseBody: "Download the installer for your platform below. Installed copies update automatically."
+          releaseBody: ${{ steps.notes.outputs.body }}
           releaseDraft: true
           prerelease: false
           args: ${{ matrix.args }}
