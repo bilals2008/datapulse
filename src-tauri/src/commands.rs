@@ -383,11 +383,69 @@ pub fn get_recap(state: State<'_, Arc<AppState>>) -> Res<Recap> {
     })
 }
 
+/// Local [start, end) window and its names for one recap period, `offset`
+/// periods back from now.
+fn wrapped_window(period: &str, offset: i32) -> (i64, i64, String, String) {
+    let now = Local::now();
+    let offset = offset.clamp(0, 400) as i64;
+
+    match period {
+        "day" => {
+            let start = local_midnight(offset).timestamp();
+            let day = Local.timestamp_opt(start, 0).single().unwrap_or(now);
+            let short = day.format("%-d %b").to_string();
+            (start, start + DAY_SECS, short.clone(), format!("On {short}"))
+        }
+        "week" => {
+            let start =
+                local_midnight(now.weekday().num_days_from_monday() as i64 + offset * 7).timestamp();
+            let day = Local.timestamp_opt(start, 0).single().unwrap_or(now);
+            let short = day.format("%-d %b").to_string();
+            (
+                start,
+                start + 7 * DAY_SECS,
+                short.clone(),
+                format!("In the week of {short}"),
+            )
+        }
+        "month" => {
+            let (year, month) = offset_month(now.year(), now.month(), -(offset as i32));
+            let (next_year, next_month) = offset_month(year, month, 1);
+            let first = Local
+                .with_ymd_and_hms(year, month, 1, 0, 0, 0)
+                .single()
+                .unwrap_or(now);
+            (
+                local_date_ts(year, month, 1),
+                local_date_ts(next_year, next_month, 1),
+                first.format("%b %Y").to_string(),
+                format!("In {}", first.format("%B %Y")),
+            )
+        }
+        _ => {
+            let year = (now.year() - offset as i32).clamp(2000, 2100);
+            (
+                local_date_ts(year, 1, 1),
+                local_date_ts(year + 1, 1, 1),
+                year.to_string(),
+                format!("In {}", year),
+            )
+        }
+    }
+}
+
 #[tauri::command]
-pub fn get_wrapped(state: State<'_, Arc<AppState>>, year: i32) -> Res<Wrapped> {
-    let year = year.clamp(2000, 2100);
-    let start = local_date_ts(year, 1, 1);
-    let end = local_date_ts(year + 1, 1, 1);
+pub fn get_wrapped(
+    state: State<'_, Arc<AppState>>,
+    period: String,
+    offset: i32,
+) -> Res<Wrapped> {
+    let (start, end, label, headline) = wrapped_window(&period, offset);
+    let year = Local
+        .timestamp_opt(start, 0)
+        .single()
+        .map(|dt| dt.year())
+        .unwrap_or_else(|| Local::now().year());
     let tz = analytics::local_offset_secs();
 
     let (days, hours, top_interface) = {
@@ -437,6 +495,8 @@ pub fn get_wrapped(state: State<'_, Arc<AppState>>, year: i32) -> Res<Wrapped> {
     let total = rx_total + tx_total;
     Ok(Wrapped {
         year,
+        label,
+        headline,
         total,
         rx: rx_total,
         tx: tx_total,
@@ -456,7 +516,7 @@ pub fn get_wrapped(state: State<'_, Arc<AppState>>, year: i32) -> Res<Wrapped> {
 /// Writes a rendered recap card into the user's Downloads folder, where a
 /// browser download would land. The webview cannot save files on its own.
 #[tauri::command]
-pub fn save_wrapped_png(app: AppHandle, year: i32, data: Vec<u8>) -> Res<String> {
+pub fn save_wrapped_png(app: AppHandle, slug: String, data: Vec<u8>) -> Res<String> {
     const PNG_MAGIC: [u8; 8] = [0x89, b'P', b'N', b'G', 0x0d, 0x0a, 0x1a, 0x0a];
     const MAX_BYTES: usize = 16 * 1024 * 1024;
 
@@ -473,7 +533,12 @@ pub fn save_wrapped_png(app: AppHandle, year: i32, data: Vec<u8>) -> Res<String>
         .map_err(|error| AppError::Io(std::io::Error::other(error)))?;
     std::fs::create_dir_all(&dir)?;
 
-    let path = dir.join(format!("datapulse-wrapped-{}.png", year.clamp(2000, 2100)));
+    let slug: String = slug
+        .chars()
+        .map(|c| if c.is_ascii_alphanumeric() { c } else { '-' })
+        .collect();
+    let slug = slug.trim_matches('-');
+    let path = dir.join(format!("datapulse-wrapped-{}.png", non_empty(slug, "card")));
     std::fs::write(&path, &data)?;
     Ok(path.to_string_lossy().to_string())
 }
@@ -602,6 +667,14 @@ pub fn get_lan_info(state: State<'_, Arc<AppState>>) -> Res<LanInfo> {
         running: lan.is_some(),
         url: lan.as_ref().map(|server| server.url().to_string()).unwrap_or_default(),
     })
+}
+
+fn non_empty<'a>(value: &'a str, fallback: &'a str) -> &'a str {
+    if value.is_empty() {
+        fallback
+    } else {
+        value
+    }
 }
 
 fn format_local_day(ts: i64) -> String {
@@ -768,5 +841,18 @@ mod tests {
                 .format("%Y-%m-%d %H")
                 .to_string()
         );
+    }
+
+    #[test]
+    fn wrapped_windows_are_ordered_and_move_back_one_period() {
+        for period in ["day", "week", "month", "year"] {
+            let (start, end, label, headline) = wrapped_window(period, 0);
+            let (prev_start, prev_end, prev_label, prev_headline) = wrapped_window(period, 1);
+            assert!(start < end, "{period} window is not a range");
+            assert!(prev_end <= start, "{period} offset 1 overlaps offset 0");
+            assert_ne!(label, prev_label, "{period} label does not change");
+            assert_ne!(headline, prev_headline, "{period} headline is static");
+            assert_eq!(wrapped_window(period, -5), wrapped_window(period, 0));
+        }
     }
 }

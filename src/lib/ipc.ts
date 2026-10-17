@@ -163,8 +163,14 @@ export type Recap = {
   topInterface: InterfaceTotal | null;
 };
 
+export type WrappedPeriod = "day" | "week" | "month" | "year";
+
 export type Wrapped = {
   year: number;
+  /** Short window name for pickers and filenames, e.g. `Oct 2026`. */
+  label: string;
+  /** Sentence fragment for the card headline, e.g. `In October 2026`. */
+  headline: string;
   total: number;
   rx: number;
   tx: number;
@@ -207,9 +213,10 @@ export const api = {
   dailyActivity: (days: number) =>
     invoke<DailyTotal[]>("get_daily_activity", { days }),
   recap: () => invoke<Recap>("get_recap"),
-  wrapped: (year: number) => invoke<Wrapped>("get_wrapped", { year }),
-  saveWrappedPng: (year: number, data: number[]) =>
-    invoke<string>("save_wrapped_png", { year, data }),
+  wrapped: (period: WrappedPeriod, offset: number) =>
+    invoke<Wrapped>("get_wrapped", { period, offset }),
+  saveWrappedPng: (slug: string, data: number[]) =>
+    invoke<string>("save_wrapped_png", { slug, data }),
   freeWindow: () => invoke<FreeWindow>("get_free_window"),
   speedReport: () => invoke<SpeedReport>("get_speed_report"),
   runSpeedtest: () => invoke<SpeedSample>("run_speedtest"),

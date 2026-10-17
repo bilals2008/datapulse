@@ -80,8 +80,9 @@ scripts/         bump-version.mjs (keeps every version field in sync)
   token in the URL path. Both are off by default.
 - Navigation is state-based (`ViewId`), keyboard shortcuts `Ctrl/Cmd + 1..5`.
 - Wrapped is a card on Settings, and on Overview only in the last week of the
-  year, not a view: it opens a dialog that draws the yearly recap on a canvas from
-  the fixed `--wrapped-*` poster palette in `src/index.css` and saves it through
+  year, not a view: the card picks the window (day/week/month/year, stepped back
+  with the arrows) and opens a dialog that draws the recap on a canvas from the
+  fixed `--wrapped-*` poster palette in `src/index.css` and saves it through
   `save_wrapped_png` (Downloads folder); the webview cannot save files itself.
 
 ## Releases & updates

@@ -224,6 +224,10 @@ pub struct BusiestDay {
 #[serde(rename_all = "camelCase")]
 pub struct Wrapped {
     pub year: i32,
+    /// Short window name for pickers and filenames: `2026`, `Oct 2026`, `13 Oct`.
+    pub label: String,
+    /// Sentence fragment for the card headline: `2026`, `October 2026`, `the week of 13 Oct`.
+    pub headline: String,
     pub total: u64,
     pub rx: u64,
     pub tx: u64,
