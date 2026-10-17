@@ -1,4 +1,4 @@
-﻿use chrono::{Datelike, Duration as ChronoDuration, Local, TimeZone};
+use chrono::{Datelike, Duration as ChronoDuration, Local, TimeZone};
 use std::collections::HashMap;
 use std::sync::Arc;
 use tauri::{AppHandle, Manager, State};

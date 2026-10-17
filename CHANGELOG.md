@@ -9,20 +9,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+---
+
+## [0.3.1] - October 17, 2026
+
 ### Added
 
-#### Tiny HUD
+#### Anomaly Feed
 
-- A 208×60 always-on-top widget showing live download/upload rates with a level meter per direction, plus the session total, and a small hide button
-- Drag it anywhere and it docks to the nearest screen edge, remembering the spot across restarts
-- `Ctrl+Alt+D`, the tray menu or Settings shows and hides it, the shortcut is rebindable, and a relaunch restores whether it was open
-- Double-click opens the full window
+- The busiest processes are grouped per app: helpers collapse into one line with their CPU added up, and each app shows its brand mark, falling back to a letter badge when there is no logo
+
+#### Settings
+
+- About lists the author with links to the website and GitHub
 
 ### Removed
 
 #### Applications
 
-- The Applications view is gone. Windows only reports per-application traffic through Event Tracing for Windows, which needs an elevated session and does not hand out usable numbers on Windows 10 anyway, so the page could only ever be empty
+- The Applications view is gone. Windows only reports per-application traffic through Event Tracing for Windows, which needs an elevated session and does not hand out usable numbers on Windows 10 anyway, so the page could only ever be empty. The ETW trace session, the socket-owner table and the icon reader went with it — none of this ever reached a release
 
 ### Fixed
 

@@ -1,4 +1,4 @@
-﻿use std::thread;
+use std::thread;
 
 use sysinfo::{ProcessesToUpdate, System};
 

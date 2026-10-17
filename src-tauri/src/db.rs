@@ -1,4 +1,4 @@
-﻿use std::collections::HashMap;
+use std::collections::HashMap;
 
 use rusqlite::{params, Connection};
 
@@ -169,7 +169,8 @@ pub fn interface_totals(
     Ok(out)
 }
 
-pub fn cumulative(conn: &Connection) -> Result<HashMap<String, (u64, u64, i64)>, AppError> {    let mut stmt = conn.prepare("SELECT iface, rx, tx, ts FROM iface_cumulative")?;
+pub fn cumulative(conn: &Connection) -> Result<HashMap<String, (u64, u64, i64)>, AppError> {
+    let mut stmt = conn.prepare("SELECT iface, rx, tx, ts FROM iface_cumulative")?;
     let rows = stmt.query_map([], |row| {
         Ok((
             row.get::<_, String>(0)?,
@@ -363,7 +364,7 @@ pub fn daily_totals(
     Ok(out)
 }
 
-/// Total transfer per local hour-of-day (0â€“23), collapsed across the span.
+/// Total transfer per local hour-of-day (0–23), collapsed across the span.
 pub fn hourly_totals(
     conn: &Connection,
     since: i64,

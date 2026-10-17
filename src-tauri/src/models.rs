@@ -1,4 +1,4 @@
-﻿use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -239,7 +239,7 @@ pub struct Wrapped {
     pub rx: u64,
     pub tx: u64,
     pub busiest_day: Option<BusiestDay>,
-    /// Local hour of day (0â€“23) with the most transfer across the year.
+    /// Local hour of day (0–23) with the most transfer across the year.
     pub busiest_hour: Option<u32>,
     pub top_interface: Option<InterfaceTotal>,
     pub active_days: u32,
@@ -255,7 +255,7 @@ pub struct Recap {
     pub delta_percent: f64,
     pub avg_daily: u64,
     pub busiest_day: Option<BusiestDay>,
-    /// Local hour of day (0â€“23) with the most transfer this week.
+    /// Local hour of day (0–23) with the most transfer this week.
     pub busiest_hour: Option<u32>,
     pub top_interface: Option<InterfaceTotal>,
 }
