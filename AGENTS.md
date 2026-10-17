@@ -39,7 +39,7 @@ src/hooks/       use-poll, use-settings (SettingsProvider), use-live-stats (Live
                  use-updater (UpdaterProvider + auto-check on startup)
 src/components/  app-sidebar, quota-card, network-card, usage-chart, live-sparkline,
                  free-window-card, speed-card, update-card, info-field, theme-toggle,
-                 wrapped-card + wrapped-dialog, ui/* (shadcn)
+                 tiny-hud, wrapped-card + wrapped-dialog, ui/* (shadcn)
 src/pages/       dashboard, usage, insights, interfaces, settings
 src/index.css    single source of truth for design tokens
 scripts/         bump-version.mjs (keeps every version field in sync)
@@ -79,6 +79,14 @@ scripts/         bump-version.mjs (keeps every version field in sync)
   dashboard (`lan.rs`) is opt-in, binds the machine's LAN address, and needs the
   token in the URL path. Both are off by default.
 - Navigation is state-based (`ViewId`), keyboard shortcuts `Ctrl/Cmd + 1..5`.
+- The tiny HUD is a second window (`label: "tiny"`, 208×60, always on top) built
+  by `src/components/tiny-hud.tsx`: live rates with a level meter per direction,
+  and the session total. `Ctrl+Alt+D` (`tauri-plugin-global-shortcut`),
+  the tray item, the Settings switch or its hide button toggles it, and the chord
+  is rebindable.
+  After a drag it docks to the nearest screen edge; the spot and the shown/hidden
+  choice live in the `settings` table, so both survive a restart. Double-clicking
+  opens the main window.
 - Wrapped is a card on Settings, and on Overview only in the last week of the
   year, not a view: the card picks the window (day/week/month/year, stepped back
   with the arrows) and opens a dialog that draws the recap on a canvas from the

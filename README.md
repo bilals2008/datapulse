@@ -35,6 +35,7 @@ as live rates, hourly/day/month charts, and per-interface totals.
 - **Data cap tracking** — a monthly allowance and billing-cycle reset day, with percentage used, remaining, projected month-end usage, and warnings at 80% and 100%.
 - **Wi-Fi details** — SSID, signal strength, radio type, channel and negotiated link rates.
 - **Native desktop feel** — frameless window with a custom titlebar, light/dark/system theme, keyboard shortcuts.
+- **Tiny HUD** — a 208×60 always-on-top widget with live rates, a level meter per direction and the session total. Drag it to any screen edge to dock it; `Ctrl+Alt+D` (or the tray menu) shows and hides it.
 - **Local-first** — every sample lives in a local SQLite file. Nothing is sent anywhere.
 
 ---

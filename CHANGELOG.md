@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+#### Tiny HUD
+
+- A 208×60 always-on-top widget showing live download/upload rates with a level meter per direction, plus the session total, and a small hide button
+- Drag it anywhere and it docks to the nearest screen edge, remembering the spot across restarts
+- `Ctrl+Alt+D`, the tray menu or Settings shows and hides it, the shortcut is rebindable, and a relaunch restores whether it was open
+- Double-click opens the full window
+
 ---
 
 ## [0.2.0] - October 16, 2026
