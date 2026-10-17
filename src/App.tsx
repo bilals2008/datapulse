@@ -7,9 +7,10 @@ import { TitleBar } from "@/components/titlebar";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { LiveStatsProvider, useLiveStats } from "@/hooks/use-live-stats";
-import { SettingsProvider } from "@/hooks/use-settings";
+import { SettingsProvider, useSettings } from "@/hooks/use-settings";
 import { UpdaterProvider } from "@/hooks/use-updater";
 import { formatRate, isActiveRate } from "@/lib/format";
+import { api } from "@/lib/ipc";
 import { cn } from "@/lib/utils";
 import { DashboardView } from "@/pages/dashboard";
 import { InsightsView } from "@/pages/insights";
@@ -67,6 +68,18 @@ function HeaderStats() {
 }
 
 const SIDEBAR_KEY = "sidebar";
+
+/** Once settings are in, the window has something real to show, so the splash
+ * can hand over to the main window. */
+function BootSignal() {
+  const { settings } = useSettings();
+
+  useEffect(() => {
+    if (settings) void api.finishBoot().catch(() => {});
+  }, [settings]);
+
+  return null;
+}
 
 function App() {
   const [view, setView] = useState<ViewId>("dashboard");
@@ -151,6 +164,7 @@ function App() {
               </div>
             </div>
 
+            <BootSignal />
             <Toaster position="bottom-right" />
           </TooltipProvider>
         </LiveStatsProvider>

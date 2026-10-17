@@ -98,6 +98,7 @@ export function SettingsView() {
   const { settings, update } = useSettings();
   const { data: meta } = usePoll(api.appMeta, 60000);
   const { data: lan } = usePoll(api.lanInfo, 5000);
+  const { data: tiny } = usePoll(api.tinyState, 3000);
   const { theme, setTheme } = useTheme();
 
   const [section, setSection] = useState<SectionId>("general");
@@ -107,12 +108,21 @@ export function SettingsView() {
   const [currency, setCurrency] = useState("PKR");
   const [saving, setSaving] = useState(false);
   const [autostart, setAutostart] = useState(false);
+  const [tinyVisible, setTinyVisible] = useState(false);
+  const [tinyHotkey, setTinyHotkey] = useState<string | null>(null);
 
   useEffect(() => {
     isEnabled()
       .then(setAutostart)
       .catch(() => {});
   }, []);
+
+  useEffect(() => {
+    if (!tiny) return;
+    setTinyVisible(tiny.visible);
+    // Seeded once: re-seeding on every poll would overwrite what is being typed.
+    setTinyHotkey((current) => current ?? tiny.hotkey);
+  }, [tiny]);
 
   useEffect(() => {
     if (!settings) return;
@@ -138,6 +148,24 @@ export function SettingsView() {
       toast.error("Could not save the data cap");
     } finally {
       setSaving(false);
+    }
+  };
+
+  const saveHotkey = async () => {
+    const chord = (tinyHotkey ?? "").trim();
+    if (!chord) {
+      toast.error("Enter a shortcut such as Ctrl+Alt+D");
+      return;
+    }
+
+    try {
+      const saved = await api.setTinyHotkey(chord);
+      setTinyHotkey(saved);
+      toast.success(`Tiny HUD shortcut set to ${saved}`);
+    } catch (error) {
+      toast.error(
+        typeof error === "string" ? error : "Could not set that shortcut",
+      );
     }
   };
 
@@ -283,6 +311,53 @@ export function SettingsView() {
                     );
                   }}
                 />
+              </Row>
+
+              <Row
+                label="Tiny HUD"
+                htmlFor="tiny-hud"
+                hint={`A 208×60 always-on-top widget with live speeds, a level meter per direction and the session total. ${
+                  tiny?.hotkey ?? "Ctrl+Alt+D"
+                } or the tray menu toggles it too.`}
+              >
+                <Switch
+                  id="tiny-hud"
+                  checked={tinyVisible}
+                  onCheckedChange={(checked) => {
+                    setTinyVisible(checked);
+                    void api.setTinyVisible(checked).then(() =>
+                      toast.success(
+                        checked ? "Tiny HUD shown" : "Tiny HUD hidden",
+                      ),
+                    );
+                  }}
+                />
+              </Row>
+
+              <Row
+                label="Tiny HUD shortcut"
+                htmlFor="tiny-hotkey"
+                hint="Works in any app. A shortcut another program already owns is refused."
+              >
+                <div className="flex items-center gap-2">
+                  <Input
+                    id="tiny-hotkey"
+                    value={tinyHotkey ?? ""}
+                    placeholder="Ctrl+Alt+D"
+                    onChange={(event) => setTinyHotkey(event.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter") void saveHotkey();
+                    }}
+                    className="w-32"
+                  />
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => void saveHotkey()}
+                  >
+                    Save
+                  </Button>
+                </div>
               </Row>
             </CardContent>
           </Card>

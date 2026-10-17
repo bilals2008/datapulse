@@ -127,6 +127,11 @@ export type LanInfo = {
   url: string;
 };
 
+export type TinyState = {
+  visible: boolean;
+  hotkey: string;
+};
+
 export type WifiInfo = {
   ssid: string;
   signalPercent: number;
@@ -225,4 +230,11 @@ export const api = {
   appMeta: () => invoke<AppMeta>("get_app_meta"),
   clearHistory: () => invoke<void>("clear_history"),
   openMainWindow: () => invoke<void>("open_main_window"),
+  finishBoot: () => invoke<void>("finish_boot"),
+  snapTiny: () => invoke<void>("snap_tiny"),
+  tinyState: () => invoke<TinyState>("get_tiny_state"),
+  setTinyVisible: (visible: boolean) =>
+    invoke<void>("set_tiny_visible", { visible }),
+  setTinyHotkey: (hotkey: string) =>
+    invoke<string>("set_tiny_hotkey", { hotkey }),
 };

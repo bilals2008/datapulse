@@ -186,7 +186,9 @@
         -webkit-tap-highlight-color: transparent;
     }
 
-    html[data-window="popover"] body {
+    html[data-window="popover"] body,
+    html[data-window="tiny"] body,
+    html[data-window="splash"] body {
         background: transparent;
     }
 
@@ -254,4 +256,47 @@
 
 @utility animate-bar-grow {
     animation: bar-grow 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes splash-in {
+    from {
+        opacity: 0;
+        transform: translateY(8px);
+    }
+}
+
+@utility animate-splash-in {
+    animation: splash-in 0.55s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes pulse-trace {
+    from {
+        stroke-dashoffset: 0;
+    }
+    to {
+        stroke-dashoffset: -352;
+    }
+}
+
+/* Dash length 52 over a 228-long path, 352 pattern: the pulse runs the line,
+   rests for a beat, then starts again. */
+@utility animate-pulse-trace {
+    stroke-dasharray: 52 300;
+    animation: pulse-trace 1.6s linear infinite;
+}
+
+@keyframes tiny-bar {
+    0%,
+    100% {
+        transform: scaleY(0.35);
+    }
+    50% {
+        transform: scaleY(1);
+    }
+}
+
+/* Duration and delay come in per bar, so a busy direction moves faster. */
+@utility tiny-bar {
+    animation: tiny-bar var(--tiny-bar-duration, 700ms) ease-in-out
+        var(--tiny-bar-delay, 0ms) infinite;
 }
