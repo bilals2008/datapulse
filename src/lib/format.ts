@@ -54,8 +54,8 @@ export function bucketLabel(key: string, range: UsageRange): string {
   }
 
   if (range === "today") {
-    const [hour] = key.split(" ").slice(1);
-    return `${hour}:00`;
+    const hour = Number(key.split(" ")[1]);
+    return Number.isNaN(hour) ? key : formatHour(hour);
   }
 
   const [year, month, day] = key.split("-").map(Number);
@@ -75,7 +75,8 @@ export function bucketTooltipLabel(key: string, range: UsageRange): string {
   }
 
   if (range === "today") {
-    return `${key}:00`;
+    const hour = Number(key.split(" ")[1]);
+    return Number.isNaN(hour) ? key : formatHour(hour);
   }
 
   const [year, month, day] = key.split("-").map(Number);
@@ -104,9 +105,17 @@ export function formatDayKeyShort(day: string): string {
 
 /** 12-hour clock label for an hour-of-day (0–23), e.g. `3 PM`. */
 export function formatHour(hour: number): string {
-  const period = hour < 12 ? "AM" : "PM";
-  const value = hour % 12 === 0 ? 12 : hour % 12;
-  return `${value} ${period}`;
+  return `${hourOf(hour)} ${hour < 12 ? "AM" : "PM"}`;
+}
+
+/** True when a `today` bucket is later than the current local hour. */
+export function isFutureHour(key: string): boolean {
+  // `today` buckets always belong to the current local day.
+  return Number(key.split(" ")[1]) > new Date().getHours();
+}
+
+function hourOf(hour: number): number {
+  return hour % 12 === 0 ? 12 : hour % 12;
 }
 
 export function formatTime(timestamp: number): string {
@@ -147,9 +156,8 @@ export function formatMBps(mbps: number): string {
 
 function clock(seconds: number): string {
   const date = new Date(seconds * 1000);
-  return `${String(date.getHours()).padStart(2, "0")}:${String(
-    date.getMinutes(),
-  ).padStart(2, "0")}`;
+  const minutes = String(date.getMinutes()).padStart(2, "0");
+  return `${formatHour(date.getHours())}:${minutes}`;
 }
 
 export function formatDateTime(seconds: number): string {

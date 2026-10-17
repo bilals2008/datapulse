@@ -6,7 +6,7 @@ import {
   ChartTooltipContent,
   type ChartConfig,
 } from "@/components/ui/chart";
-import { bucketLabel, bucketTooltipLabel, formatBytes } from "@/lib/format";
+import { bucketLabel, bucketTooltipLabel, formatBytes, isFutureHour } from "@/lib/format";
 import type { UsageBucket, UsageRange } from "@/lib/ipc";
 import { cn } from "@/lib/utils";
 
@@ -22,10 +22,12 @@ type UsageChartProps = {
 };
 
 export function UsageChart({ buckets, range, className }: UsageChartProps) {
-  const data = buckets.map((bucket) => ({
-    ...bucket,
-    label: bucketLabel(bucket.key, range),
-  }));
+  const data = buckets
+    .filter((bucket) => range !== "today" || !isFutureHour(bucket.key))
+    .map((bucket) => ({
+      ...bucket,
+      label: bucketLabel(bucket.key, range),
+    }));
 
   return (
     <ChartContainer config={config} className={cn("aspect-auto w-full", className)}>
