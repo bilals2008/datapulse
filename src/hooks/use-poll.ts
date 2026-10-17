@@ -13,6 +13,7 @@ export function usePoll<T>(
 
   useEffect(() => {
     let active = true;
+    setLoading(true);
 
     const run = async () => {
       try {
