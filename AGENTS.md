@@ -20,8 +20,8 @@ usage. Windows-first (Wi-Fi details come from `netsh`).
 
 ## Stack
 
-- **Backend:** Tauri 2, Rust edition 2024, `sysinfo` (counters), `rusqlite`
-  (`bundled`), `chrono`, `thiserror`.
+- **Backend:** Tauri 2, Rust edition 2024, `sysinfo` (counters), `netdev`
+  (interface, default gateway), `rusqlite` (`bundled`), `chrono`, `thiserror`.
 - **Frontend:** React 19, TypeScript 6, Vite 8, Tailwind CSS **v4**
   (`@tailwindcss/vite` — no `tailwind.config`).
 - **UI:** shadcn/ui (`style: radix-nova`, base `radix`, lucide icons), `recharts`,
@@ -43,7 +43,7 @@ src-tauri/src/
   analytics/      forecast, anomaly detection, free-window search
   speed.rs        opt-in ISP speed test
   hud.rs          tray icon tint + taskbar progress
-  lan.rs          opt-in LAN dashboard server
+  devices.rs      LAN neighbours (arp) + router, via netdev
   commands.rs     every #[tauri::command]
   lib.rs          setup, windows, tray, global shortcut
 
@@ -54,7 +54,7 @@ src/components/   titlebar, tray-popover, splash, tiny-hud, app-sidebar,
                   free-window-card, forecast-card, anomaly-feed, activity-heatmap,
                   weekly-recap, speed-card, update-card, info-field, theme-toggle,
                   wrapped-card + wrapped-dialog, ui/* (shadcn)
-src/pages/        dashboard, usage, insights, interfaces, settings
+src/pages/        dashboard, usage, insights, interfaces, network, settings
 src/index.css     single source of truth for design tokens
 scripts/          bump-version.mjs, release-notes.mjs
 ```
@@ -99,6 +99,16 @@ trust that first call — `use-settings` retries for exactly this reason, and
 `"create": false` and building windows inside `setup`: WebView2 refuses with
 `0x8007139F` and the app dies on launch.
 
+## Problem solving
+
+- When a problem is hard to diagnose or the fix is unclear, research it before
+  writing code. Do not guess, and do not settle for an outdated method.
+- Use the latest stable, recommended approach. No hacks, temporary fixes or
+  workarounds.
+- For anything uncertain, check official sources first: Tauri, Rust crate docs,
+  React/Tailwind docs. Official documentation beats random tutorials.
+- Confirm the version in use before copying a solution from the web.
+
 ## Behaviour
 
 - The collector ticks every `refreshMs` (clamped 500–10000 ms, default 1000),
@@ -109,10 +119,14 @@ trust that first call — `use-settings` retries for exactly this reason, and
   zero-filled.
 - Anomalies store a process snapshot taken at detection time (`procs.rs`) — a
   hint about what was busy, not measured per-process traffic.
-- Speed tests (`speed.rs`) and the LAN dashboard (`lan.rs`) are opt-in and off by
-  default. The speed test pulls ~2 MB per run; the LAN server binds the machine's
-  LAN address and only answers on the path that starts with its token.
-- Navigation is state-based (`ViewId`), shortcuts `Ctrl/Cmd + 1..5`.
+- The speed test (`speed.rs`) is opt-in and off by default. It pulls ~2 MB per
+  run.
+- Navigation is state-based (`ViewId`), shortcuts `Ctrl/Cmd + 1..6`.
+- **Network** lists the devices this machine has talked to, the router it goes
+  out through and this install's version, uptime and database size. Devices come
+  from the OS neighbour table (`arp -a`) — a hint, not a live scan: an entry
+  lingers a few minutes after a device leaves. The router and local address come
+  from `netdev`, which needs no elevation.
 - **Tiny HUD:** live rates plus a level meter per direction and the session total.
   Toggled by `Ctrl+Alt+D` (`tauri-plugin-global-shortcut`, rebindable in
   Settings), the tray item or the Settings switch. After a drag it docks to the
