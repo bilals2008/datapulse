@@ -1,8 +1,7 @@
 use std::sync::{Arc, Mutex};
 
 use tauri::image::Image;
-use tauri::window::{ProgressBarState, ProgressBarStatus};
-use tauri::{AppHandle, Manager};
+use tauri::AppHandle;
 
 use crate::analytics::human_bytes;
 use crate::commands::quota_status;
@@ -17,8 +16,8 @@ const RED: [u8; 3] = [202, 98, 81];
 /// Last tint written to the tray, so an unchanged state is not re-rendered.
 static LAST_TINT: Mutex<Option<[u8; 3]>> = Mutex::new(None);
 
-/// Pushes live state into the OS chrome: tray tooltip, tray tint and the
-/// taskbar progress bar. Cheap enough to run on the collector's slow tick.
+/// Pushes live state into the OS chrome: the tray tooltip and the tray tint.
+/// Cheap enough to run on the collector's slow tick.
 pub fn refresh(app: &AppHandle, state: &Arc<AppState>) {
     let quota = quota_status(state).ok().filter(|quota| quota.enabled);
     let percent = quota
@@ -51,18 +50,6 @@ pub fn refresh(app: &AppHandle, state: &Arc<AppState>) {
                 }
             }
         }
-    }
-
-    if let Some(window) = app.get_webview_window("main") {
-        let progress = percent.map(|value| value.clamp(0.0, 100.0) as u64);
-        let _ = window.set_progress_bar(ProgressBarState {
-            status: Some(if progress.is_some() {
-                ProgressBarStatus::Normal
-            } else {
-                ProgressBarStatus::None
-            }),
-            progress,
-        });
     }
 }
 
