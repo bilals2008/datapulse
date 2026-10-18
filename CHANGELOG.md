@@ -11,6 +11,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.3.2] - October 19, 2026
+
+### Added
+
+#### Themes
+
+- Five themes in place of plain light and dark: Light and Ayu Light, Dark, Volt and Ayu Dark
+- Settings → Appearance picks one, grouped by light and dark, and the choice survives a restart
+
+### Changed
+
+#### Settings
+
+- The page is tabs now — General, Appearance and System — instead of one long rail
+
+### Removed
+
+#### Taskbar
+
+- The data-cap progress bar on the taskbar is gone
+
+---
+
 ## [0.3.1] - October 17, 2026
 
 ### Added

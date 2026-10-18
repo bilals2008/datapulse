@@ -20,12 +20,14 @@ usage. Windows-first (Wi-Fi details come from `netsh`).
 
 ## Stack
 
-- **Backend:** Tauri 2, Rust edition 2024, `sysinfo` (counters), `netdev`
-  (interface, default gateway), `rusqlite` (`bundled`), `chrono`, `thiserror`.
+- **Backend:** Tauri 2, Rust edition 2024, `sysinfo` (counters), `rusqlite`
+  (`bundled`), `chrono`, `thiserror`.
 - **Frontend:** React 19, TypeScript 6, Vite 8, Tailwind CSS **v4**
   (`@tailwindcss/vite` — no `tailwind.config`).
 - **UI:** shadcn/ui (`style: radix-nova`, base `radix`, lucide icons), `recharts`,
-  `sonner`. Theming is the local `ThemeProvider` in `src/hooks/use-theme.tsx`.
+  `sonner`. Theming is the local `ThemeProvider` in `src/hooks/use-theme.tsx`; the
+  theme list is `src/lib/themes.ts` and the pick lives in `localStorage`, not in
+  the settings table.
 - **Alias:** `@/*` → `src/*` via `paths` in `tsconfig.json` (no `baseUrl`; it is
   deprecated in TS 6).
 
@@ -42,19 +44,19 @@ src-tauri/src/
   collector.rs    sampling thread, emits `pulse-tick`
   analytics/      forecast, anomaly detection, free-window search
   speed.rs        opt-in ISP speed test
-  hud.rs          tray icon tint + taskbar progress
-  devices.rs      LAN neighbours (arp) + router, via netdev
+  hud.rs          tray icon tint
+  lan.rs          opt-in LAN dashboard server
   commands.rs     every #[tauri::command]
   lib.rs          setup, windows, tray, global shortcut
 
-src/lib/          ipc.ts (typed invoke wrappers + types), format.ts, apps.ts, utils.ts
+src/lib/          ipc.ts (typed invoke wrappers + types), format.ts, apps.ts, themes.ts, utils.ts
 src/hooks/        use-poll, use-settings, use-live-stats, use-updater, use-theme
 src/components/   titlebar, tray-popover, splash, tiny-hud, app-sidebar,
                   quota-card, network-card, usage-chart, live-sparkline,
                   free-window-card, forecast-card, anomaly-feed, activity-heatmap,
                   weekly-recap, speed-card, update-card, info-field, theme-toggle,
-                  wrapped-card + wrapped-dialog, ui/* (shadcn)
-src/pages/        dashboard, usage, insights, interfaces, network, settings
+                  theme-picker, wrapped-card + wrapped-dialog, ui/* (shadcn)
+src/pages/        dashboard, usage, insights, interfaces, settings
 src/index.css     single source of truth for design tokens
 scripts/          bump-version.mjs, release-notes.mjs
 ```
@@ -119,14 +121,10 @@ trust that first call — `use-settings` retries for exactly this reason, and
   zero-filled.
 - Anomalies store a process snapshot taken at detection time (`procs.rs`) — a
   hint about what was busy, not measured per-process traffic.
-- The speed test (`speed.rs`) is opt-in and off by default. It pulls ~2 MB per
-  run.
-- Navigation is state-based (`ViewId`), shortcuts `Ctrl/Cmd + 1..6`.
-- **Network** lists the devices this machine has talked to, the router it goes
-  out through and this install's version, uptime and database size. Devices come
-  from the OS neighbour table (`arp -a`) — a hint, not a live scan: an entry
-  lingers a few minutes after a device leaves. The router and local address come
-  from `netdev`, which needs no elevation.
+- Speed tests (`speed.rs`) and the LAN dashboard (`lan.rs`) are opt-in and off by
+  default. The speed test pulls ~2 MB per run; the LAN server binds the machine's
+  LAN address and only answers on the path that starts with its token.
+- Navigation is state-based (`ViewId`), shortcuts `Ctrl/Cmd + 1..5`.
 - **Tiny HUD:** live rates plus a level meter per direction and the session total.
   Toggled by `Ctrl+Alt+D` (`tauri-plugin-global-shortcut`, rebindable in
   Settings), the tray item or the Settings switch. After a drag it docks to the
