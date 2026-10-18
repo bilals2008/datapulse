@@ -2,6 +2,7 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import { Copy, Minus, PanelLeftClose, PanelLeftOpen, Square, X } from "lucide-react";
 import { useEffect, useState } from "react";
 
+import { ThemeToggle } from "@/components/theme-toggle";
 import { cn } from "@/lib/utils";
 
 type TitleBarProps = {
@@ -96,6 +97,8 @@ export function TitleBar({ collapsed, onToggleSidebar }: TitleBarProps) {
       </div>
 
       <div className="flex h-full shrink-0 items-stretch">
+        <ThemeToggle />
+
         {controls.map((control) => (
           <button
             key={control.label}

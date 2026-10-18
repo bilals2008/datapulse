@@ -8,8 +8,13 @@ import {
   type ReactNode,
 } from "react";
 
-export type Theme = "light" | "dark" | "system";
-export type ResolvedTheme = "light" | "dark";
+import {
+  DEFAULT_THEME,
+  THEME_IDS,
+  THEME_SCHEME,
+  type ResolvedTheme,
+  type Theme,
+} from "@/lib/themes";
 
 type ThemeContextValue = {
   theme: Theme;
@@ -20,39 +25,30 @@ type ThemeContextValue = {
 const STORAGE_KEY = "theme";
 
 const ThemeContext = createContext<ThemeContextValue>({
-  theme: "system",
+  theme: DEFAULT_THEME,
   resolvedTheme: "light",
   setTheme: () => {},
 });
 
 function readStoredTheme(): Theme {
   const stored = localStorage.getItem(STORAGE_KEY);
-  return stored === "light" || stored === "dark" ? stored : "system";
-}
-
-function readSystemTheme(): ResolvedTheme {
-  return window.matchMedia("(prefers-color-scheme: dark)").matches
-    ? "dark"
-    : "light";
+  return stored && THEME_IDS.includes(stored)
+    ? (stored as Theme)
+    : DEFAULT_THEME;
 }
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const [theme, setThemeState] = useState<Theme>(readStoredTheme);
-  const [system, setSystem] = useState<ResolvedTheme>(readSystemTheme);
+
+  const resolvedTheme = THEME_SCHEME[theme];
 
   useEffect(() => {
-    const query = window.matchMedia("(prefers-color-scheme: dark)");
-    const onChange = () => setSystem(query.matches ? "dark" : "light");
-
-    query.addEventListener("change", onChange);
-    return () => query.removeEventListener("change", onChange);
-  }, []);
-
-  const resolvedTheme: ResolvedTheme = theme === "system" ? system : theme;
-
-  useEffect(() => {
-    document.documentElement.classList.toggle("dark", resolvedTheme === "dark");
-  }, [resolvedTheme]);
+    const root = document.documentElement;
+    // data-theme picks the palette in index.css. .dark is kept in step so the
+    // Tailwind dark: variant follows that palette's light or dark side.
+    root.dataset.theme = theme;
+    root.classList.toggle("dark", resolvedTheme === "dark");
+  }, [theme, resolvedTheme]);
 
   const setTheme = useCallback((next: Theme) => {
     localStorage.setItem(STORAGE_KEY, next);

@@ -2,7 +2,6 @@ import { ArrowDown, ArrowUp } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 
 import { AppSidebar, type ViewId } from "@/components/app-sidebar";
-import { ThemeToggle } from "@/components/theme-toggle";
 import { TitleBar } from "@/components/titlebar";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -141,10 +140,7 @@ function App() {
                         {TITLES[view].subtitle}
                       </p>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <HeaderStats />
-                      <ThemeToggle />
-                    </div>
+                    <HeaderStats />
                   </header>
 
                   <main className="min-h-0 flex-1 overflow-y-auto px-6 py-5">

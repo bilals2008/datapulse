@@ -54,7 +54,8 @@
     --radius-4xl: calc(var(--radius) * 2.6);
 }
 
-:root {
+:root,
+[data-theme="light"] {
     color-scheme: light;
 
     --background: oklch(0.972 0.009 87);
@@ -114,7 +115,8 @@
     --wrapped-sage: oklch(0.778 0.106 158);
 }
 
-.dark {
+.dark,
+[data-theme="dark"] {
     color-scheme: dark;
 
     --background: oklch(0.187 0.013 74);
@@ -159,6 +161,158 @@
     --sidebar-accent-foreground: oklch(0.880 0.034 158);
     --sidebar-border: oklch(1 0 0 / 8%);
     --sidebar-ring: oklch(0.742 0.084 158);
+}
+
+/* Volt — neon lime on deep teal. The background, text and accent tokens are
+   QuickPrompt's `[data-theme="volt"]` values verbatim; the direction, status
+   and chart tokens are complements in the same teal and lime family. */
+[data-theme="volt"] {
+    color-scheme: dark;
+
+    --background: #03080a;
+    --foreground: #d4e4e8;
+    --card: #081216;
+    --card-foreground: #d4e4e8;
+    --popover: #081216;
+    --popover-foreground: #d4e4e8;
+
+    --primary: #c8ff00;
+    --primary-foreground: #03080a;
+    --secondary: #0c1a1f;
+    --secondary-foreground: #c4d8dc;
+    --muted: #0c1a1f;
+    --muted-foreground: #5a7a82;
+    --accent: #0e2028;
+    --accent-foreground: #c4d8dc;
+
+    --destructive: #ff4444;
+    --destructive-foreground: #ffffff;
+
+    /* Translucent white, same as the default dark theme: solid lines read as
+       hard teal/blue edges on a near-black palette. */
+    --border: oklch(1 0 0 / 9%);
+    --input: oklch(1 0 0 / 13%);
+    --ring: #c8ff00;
+
+    --download: #c8ff00;
+    --upload: #ff9f45;
+    --success: #a3e635;
+    --warning: #f5b544;
+
+    --chart-1: #c8ff00;
+    --chart-2: #4ad8a8;
+    --chart-3: #ff9f45;
+    --chart-4: #5fb4e6;
+    --chart-5: #c4d8dc;
+
+    --sidebar: #020608;
+    --sidebar-foreground: #d4e4e8;
+    --sidebar-primary: #c8ff00;
+    --sidebar-primary-foreground: #03080a;
+    --sidebar-accent: #0e2028;
+    --sidebar-accent-foreground: #c4d8dc;
+    --sidebar-border: oklch(1 0 0 / 8%);
+    --sidebar-ring: #c8ff00;
+}
+
+/* Ayu Dark — deep blue-black with the signature Ayu gold accent. Palette
+   tokens are QuickPrompt's `[data-theme="ayu-dark"]` values verbatim; the
+   direction, status and chart tokens are Ayu's own syntax colours. */
+[data-theme="ayu-dark"] {
+    color-scheme: dark;
+
+    --background: #0b0e14;
+    --foreground: #b3b1ad;
+    --card: #0f131a;
+    --card-foreground: #b3b1ad;
+    --popover: #0f131a;
+    --popover-foreground: #b3b1ad;
+
+    --primary: #e6b450;
+    --primary-foreground: #0b0e14;
+    --secondary: #14191f;
+    --secondary-foreground: #b3b1ad;
+    --muted: #14191f;
+    --muted-foreground: #6c7680;
+    --accent: #1a212b;
+    --accent-foreground: #d9d7d0;
+
+    --destructive: #f07178;
+    --destructive-foreground: #0b0e14;
+
+    --border: oklch(1 0 0 / 9%);
+    --input: oklch(1 0 0 / 13%);
+    --ring: #e6b450;
+
+    --download: #aad94c;
+    --upload: #ff8f40;
+    --success: #aad94c;
+    --warning: #ffb454;
+
+    --chart-1: #e6b450;
+    --chart-2: #aad94c;
+    --chart-3: #ff8f40;
+    --chart-4: #59c2ff;
+    --chart-5: #95e6cb;
+
+    --sidebar: #0a0e14;
+    --sidebar-foreground: #8a9199;
+    --sidebar-primary: #e6b450;
+    --sidebar-primary-foreground: #0b0e14;
+    --sidebar-accent: #14191f;
+    --sidebar-accent-foreground: #b3b1ad;
+    --sidebar-border: oklch(1 0 0 / 8%);
+    --sidebar-ring: #e6b450;
+}
+
+/* Ayu Light — clean day variant with the Ayu orange accent. */
+[data-theme="ayu-light"] {
+    color-scheme: light;
+
+    --background: #fcfcfc;
+    --foreground: #5c6773;
+    --card: #ffffff;
+    --card-foreground: #5c6773;
+    --popover: #ffffff;
+    --popover-foreground: #5c6773;
+
+    --primary: #ff9940;
+    /* Ayu's own pairing is white on this orange (2.1:1). Dark Ayu ink keeps
+       primary buttons and badges readable. */
+    --primary-foreground: #0a0e14;
+    --secondary: #f3f4f5;
+    --secondary-foreground: #5c6773;
+    --muted: #f3f4f5;
+    --muted-foreground: #8a9199;
+    --accent: #eceff1;
+    --accent-foreground: #5c6773;
+
+    --destructive: #f07171;
+    --destructive-foreground: #ffffff;
+
+    --border: #e7eaed;
+    --input: #e7eaed;
+    --ring: #ff9940;
+
+    --download: #86b300;
+    --upload: #fa8d3e;
+    --success: #86b300;
+    --warning: #f2ae49;
+
+    --chart-1: #ff9940;
+    --chart-2: #86b300;
+    --chart-3: #fa8d3e;
+    --chart-4: #55b4d4;
+    --chart-5: #f07171;
+
+    --sidebar: #f5f6f7;
+    --sidebar-foreground: #5c6773;
+    --sidebar-primary: #ff9940;
+    --sidebar-primary-foreground: #ffffff;
+    --sidebar-accent: #eceff1;
+    --sidebar-accent-foreground: #5c6773;
+    --sidebar-border: #e7eaed;
+    --sidebar-ring: #ff9940;
 }
 
 @layer base {

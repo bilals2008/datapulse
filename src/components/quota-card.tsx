@@ -77,7 +77,6 @@ export function QuotaCard({ onOpenSettings }: QuotaCardProps) {
   }
 
   const percent = (data.usedBytes / data.limitBytes) * 100;
-  const clamped = Math.min(percent, 100);
   const remaining = Math.max(data.limitBytes - data.usedBytes, 0);
   const overBudget = data.projectedBytes > data.limitBytes;
   const spent = formatMoney(
@@ -106,13 +105,6 @@ export function QuotaCard({ onOpenSettings }: QuotaCardProps) {
         </CardAction>
       </CardHeader>
       <CardContent className="flex flex-col gap-3">
-        <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
-          <div
-            className="h-full rounded-full transition-all duration-500"
-            style={{ width: `${clamped}%`, backgroundColor: barColor }}
-          />
-        </div>
-
         <div className={cn("grid gap-3", spent ? "grid-cols-3" : "grid-cols-2")}>
           {spent ? (
             <div className="flex flex-col gap-0.5">
