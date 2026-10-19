@@ -1,4 +1,4 @@
-import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from "recharts";
+import { Area, AreaChart, CartesianGrid, ReferenceDot, XAxis, YAxis } from "recharts";
 
 import {
   ChartContainer,
@@ -7,7 +7,7 @@ import {
   type ChartConfig,
 } from "@/components/ui/chart";
 import { bucketLabel, bucketTooltipLabel, formatBytes, isFutureHour } from "@/lib/format";
-import type { UsageBucket, UsageRange } from "@/lib/ipc";
+import type { AnomalyMark, UsageBucket, UsageRange } from "@/lib/ipc";
 import { cn } from "@/lib/utils";
 
 const config = {
@@ -15,18 +15,39 @@ const config = {
   tx: { label: "Upload", color: "var(--upload)" },
 } satisfies ChartConfig;
 
+const MARK_LABELS: Record<AnomalyMark["kind"], string> = {
+  spike: "unusual spike",
+  night: "overnight transfer",
+};
+
+/** The `plan_series` bucket key for an anomaly timestamp, in local time. */
+function bucketKey(ts: number, range: UsageRange): string {
+  const date = new Date(ts * 1000);
+  const pad = (value: number) => String(value).padStart(2, "0");
+  const day = `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+
+  if (range === "today") return `${day} ${pad(date.getHours())}`;
+  if (range === "12m") return day.slice(0, 7);
+  return day;
+}
+
 type UsageChartProps = {
   buckets: UsageBucket[];
   range: UsageRange;
+  marks?: AnomalyMark[];
   className?: string;
 };
 
-export function UsageChart({ buckets, range, className }: UsageChartProps) {
+export function UsageChart({ buckets, range, marks, className }: UsageChartProps) {
+  const marked = new Map<string, AnomalyMark["kind"]>();
+  for (const mark of marks ?? []) marked.set(bucketKey(mark.ts, range), mark.kind);
+
   const data = buckets
     .filter((bucket) => range !== "today" || !isFutureHour(bucket.key))
     .map((bucket) => ({
       ...bucket,
       label: bucketLabel(bucket.key, range),
+      mark: marked.get(bucket.key),
     }));
 
   return (
@@ -75,8 +96,12 @@ export function UsageChart({ buckets, range, className }: UsageChartProps) {
           content={
             <ChartTooltipContent
               labelFormatter={(_value, payload) => {
-                const key = payload?.[0]?.payload?.key;
-                return key ? bucketTooltipLabel(key, range) : "";
+                const row = payload?.[0]?.payload;
+                if (!row?.key) return "";
+                const label = bucketTooltipLabel(row.key, range);
+                return row.mark
+                  ? `${label} · ${MARK_LABELS[row.mark as AnomalyMark["kind"]] ?? "unusual"}`
+                  : label;
               }}
               formatter={(value, name) => {
                 const entry = config[name as keyof typeof config];
@@ -114,6 +139,19 @@ export function UsageChart({ buckets, range, className }: UsageChartProps) {
           strokeWidth={1.6}
           fill="url(#usage-tx)"
         />
+        {data
+          .filter((bucket) => bucket.mark)
+          .map((bucket) => (
+            <ReferenceDot
+              key={bucket.key}
+              x={bucket.label}
+              y={bucket.rx + bucket.tx}
+              r={3}
+              fill="var(--warning)"
+              stroke="var(--background)"
+              strokeWidth={1.5}
+            />
+          ))}
       </AreaChart>
     </ChartContainer>
   );

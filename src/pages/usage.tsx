@@ -49,6 +49,11 @@ export function UsageView() {
     20000,
     [range],
   );
+  const { data: marks } = usePoll(
+    () => api.anomalyMarks(range),
+    30000,
+    [range],
+  );
 
   const rx = series?.rx ?? 0;
   const tx = series?.tx ?? 0;
@@ -88,6 +93,12 @@ export function UsageView() {
             Download and upload volume over the selected range
           </CardDescription>
           <CardAction className="flex items-center gap-4">
+            {marks && marks.length > 0 ? (
+              <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                <span className="size-2 rounded-full bg-warning" />
+                Unusual
+              </span>
+            ) : null}
             <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
               <span className="size-2 rounded-[2px] bg-download" />
               Download
@@ -103,6 +114,7 @@ export function UsageView() {
             <UsageChart
               buckets={series.buckets}
               range={range}
+              marks={marks ?? []}
               className="h-72"
             />
           ) : (

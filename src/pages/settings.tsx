@@ -9,7 +9,9 @@ import {
 import { useEffect, useState, type ReactNode } from "react";
 import { toast } from "sonner";
 import { disable, enable, isEnabled } from "@tauri-apps/plugin-autostart";
+import { open, save } from "@tauri-apps/plugin-dialog";
 import { openUrl } from "@tauri-apps/plugin-opener";
+import { downloadDir, join } from "@tauri-apps/api/path";
 
 import { InfoField } from "@/components/info-field";
 import { ThemePicker } from "@/components/theme-picker";
@@ -60,6 +62,14 @@ const REFRESH_OPTIONS = [
 
 const RESET_DAYS = Array.from({ length: 28 }, (_, index) => String(index + 1));
 
+const RETENTION_OPTIONS = [
+  { value: "0", label: "Keep everything" },
+  { value: "30", label: "30 days" },
+  { value: "90", label: "90 days" },
+  { value: "180", label: "6 months" },
+  { value: "365", label: "1 year" },
+];
+
 type SectionId = "general" | "appearance" | "system";
 
 const SECTIONS: { id: SectionId; label: string; icon: LucideIcon }[] = [
@@ -104,6 +114,7 @@ export function SettingsView() {
   const [autostart, setAutostart] = useState(false);
   const [tinyVisible, setTinyVisible] = useState(false);
   const [tinyHotkey, setTinyHotkey] = useState<string | null>(null);
+  const [transferring, setTransferring] = useState(false);
 
   useEffect(() => {
     isEnabled()
@@ -169,6 +180,49 @@ export function SettingsView() {
       toast.success("Usage history cleared");
     } catch {
       toast.error("Could not clear usage history");
+    }
+  };
+
+  const exportUsage = async () => {
+    try {
+      const stamp = new Date().toISOString().slice(0, 10);
+      const path = await save({
+        defaultPath: await join(await downloadDir(), `datapulse-usage-${stamp}.jsonl`),
+        filters: [{ name: "DataPulse usage", extensions: ["jsonl"] }],
+      });
+      if (!path) return;
+
+      setTransferring(true);
+      const rows = await api.exportUsage(path);
+      toast.success(`Exported ${rows.toLocaleString()} samples`);
+    } catch {
+      toast.error("Could not export usage data");
+    } finally {
+      setTransferring(false);
+    }
+  };
+
+  const importUsage = async () => {
+    try {
+      const picked = await open({
+        multiple: false,
+        filters: [{ name: "DataPulse usage", extensions: ["jsonl"] }],
+      });
+      const path = Array.isArray(picked) ? picked[0] : picked;
+      if (!path) return;
+
+      setTransferring(true);
+      const result = await api.importUsage(path);
+      const skipped = result.skipped
+        ? `, skipped ${result.skipped.toLocaleString()}`
+        : "";
+      toast.success(`Imported ${result.imported.toLocaleString()} samples${skipped}`);
+    } catch (error) {
+      toast.error(
+        typeof error === "string" ? error : "Could not import usage data",
+      );
+    } finally {
+      setTransferring(false);
     }
   };
 
@@ -486,14 +540,66 @@ export function SettingsView() {
                   Usage samples are stored locally on this device.
                 </CardDescription>
               </CardHeader>
-              <CardContent>
-                <code
-                  data-selectable="true"
-                  className="text-data bg-muted/50 text-muted-foreground block truncate rounded-md px-3 py-2 text-xs"
-                  title={meta?.dbPath}
+              <CardContent className="divide-y divide-border/60 px-0">
+                <Row
+                  label="History detail"
+                  htmlFor="retention"
+                  hint="Older samples fold into hourly totals, so daily and monthly figures stay exact. Keeping everything stores a row every minute."
                 >
-                  {meta?.dbPath ?? "—"}
-                </code>
+                  <Select
+                    value={String(settings?.retentionDays ?? 0)}
+                    onValueChange={(value) => {
+                      void update({ retentionDays: Number(value) }).then(() =>
+                        toast.success("History retention updated"),
+                      );
+                    }}
+                  >
+                    <SelectTrigger id="retention" className="w-36">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectGroup>
+                        {RETENTION_OPTIONS.map((option) => (
+                          <SelectItem key={option.value} value={option.value}>
+                            {option.label}
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
+                    </SelectContent>
+                  </Select>
+                </Row>
+                <div className="px-4 py-3">
+                  <code
+                    data-selectable="true"
+                    className="text-data bg-muted/50 text-muted-foreground block truncate rounded-md px-3 py-2 text-xs"
+                    title={meta?.dbPath}
+                  >
+                    {meta?.dbPath ?? "—"}
+                  </code>
+                </div>
+                <Row
+                  label="Backup and restore"
+                  hint="Exports every stored sample as JSONL. Importing overwrites matching minutes, so importing the same file twice is safe."
+                >
+                  <div className="flex items-center gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={transferring}
+                      onClick={() => void exportUsage()}
+                    >
+                      Export
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={transferring}
+                      onClick={() => void importUsage()}
+                    >
+                      Import
+                    </Button>
+                  </div>
+                </Row>
               </CardContent>
               <CardFooter className="justify-between gap-4">
                 <p className="text-xs text-muted-foreground">

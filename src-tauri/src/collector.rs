@@ -16,6 +16,7 @@ const WIFI_INTERVAL: Duration = Duration::from_secs(15);
 const HUD_INTERVAL: Duration = Duration::from_secs(15);
 const ANOMALY_INTERVAL: Duration = Duration::from_secs(300);
 const ANOMALY_LOOKBACK: i64 = 30 * 86_400;
+const COMPACT_INTERVAL: Duration = Duration::from_secs(6 * 3600);
 const MAX_DELTA_RATE: f64 = 1_000_000_000.0;
 
 fn now_secs() -> i64 {
@@ -41,6 +42,9 @@ fn run_loop(app: AppHandle, state: Arc<AppState>) {
     let mut last_hud = Instant::now();
     let mut last_anomaly = Instant::now()
         .checked_sub(ANOMALY_INTERVAL)
+        .unwrap_or_else(Instant::now);
+    let mut last_compact = Instant::now()
+        .checked_sub(COMPACT_INTERVAL)
         .unwrap_or_else(Instant::now);
 
     loop {
@@ -137,6 +141,11 @@ fn run_loop(app: AppHandle, state: Arc<AppState>) {
             last_anomaly = Instant::now();
         }
 
+        if last_compact.elapsed() >= COMPACT_INTERVAL {
+            compact(&state);
+            last_compact = Instant::now();
+        }
+
         thread::sleep(tick);
     }
 }
@@ -160,6 +169,22 @@ pub fn flush(state: &Arc<AppState>) {
     for (iface, (rx, tx)) in totals {
         let _ = db::upsert_cumulative(&conn, &iface, rx, tx, ts);
     }
+}
+
+/// Rolls minute rows older than the retention window up to hourly rows. Sums
+/// are unchanged, so daily, monthly and hour-of-day views keep their numbers.
+pub(crate) fn compact(state: &Arc<AppState>) {
+    let days = state.config.lock().unwrap().retention_days;
+    if days == 0 {
+        return;
+    }
+
+    let tz = analytics::local_offset_secs();
+    let cutoff = now_secs() - days as i64 * 86_400;
+    let cutoff = cutoff - (cutoff + tz as i64).rem_euclid(3600);
+
+    let conn = state.db.lock().unwrap();
+    let _ = db::compact_history(&conn, cutoff, tz);
 }
 
 fn scan_anomalies(app: &AppHandle, state: &Arc<AppState>) {

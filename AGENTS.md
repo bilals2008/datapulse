@@ -119,6 +119,14 @@ trust that first call — `use-settings` retries for exactly this reason, and
   `app_data_dir` (WAL mode); startup reconciles counters via `iface_cumulative`.
 - Local-day bucketing happens in Rust (chrono `Local` offset); gaps are
   zero-filled.
+- **Retention** (`retention_days`, default `0` = keep every minute) folds older
+  rows into one per local hour inside `usage_minute`, so totals, day/month charts
+  and hour-of-day figures stay exact. Runs at startup and every 6 hours, and when
+  the setting changes.
+- **Backup and restore** (Settings → Storage) writes every `usage_minute` row as
+  JSONL and merges one back by overwriting matching minutes. The save/open
+  dialogs come from `tauri-plugin-dialog` (`dialog:default` capability); the
+  export file is written by Rust, never by the webview.
 - Anomalies store a process snapshot taken at detection time (`procs.rs`) — a
   hint about what was busy, not measured per-process traffic.
 - Speed tests (`speed.rs`) and the LAN dashboard (`lan.rs`) are opt-in and off by

@@ -1,13 +1,17 @@
 use std::collections::HashMap;
+use std::io::{BufRead, BufReader, Write};
 
 use rusqlite::{params, Connection};
 
 use crate::error::AppError;
-use crate::models::{Anomaly, SpeedSample};
+use crate::models::{Anomaly, SpeedSample, UsageRow};
 use crate::state::Config;
 
 /// Speed samples are kept for 90 days.
 const SPEED_RETENTION_SECS: i64 = 90 * 86_400;
+
+/// Import refuses anything bigger; a year of hourly rows is a few megabytes.
+const MAX_IMPORT_BYTES: u64 = 1024 * 1024 * 1024;
 
 pub fn open(path: &std::path::Path) -> Result<Connection, AppError> {
     let conn = Connection::open(path)?;
@@ -203,6 +207,83 @@ pub fn upsert_cumulative(
     Ok(())
 }
 
+/// Writes every stored sample as one JSON object per line.
+pub fn export_rows<W: Write>(conn: &Connection, mut out: W) -> Result<u64, AppError> {
+    let mut stmt =
+        conn.prepare("SELECT ts_min, iface, rx, tx FROM usage_minute ORDER BY ts_min")?;
+    let mut rows = stmt.query([])?;
+    let mut count = 0_u64;
+
+    while let Some(row) = rows.next()? {
+        let entry = UsageRow {
+            ts: row.get(0)?,
+            iface: row.get(1)?,
+            rx: row.get::<_, i64>(2)?.max(0) as u64,
+            tx: row.get::<_, i64>(3)?.max(0) as u64,
+        };
+        serde_json::to_writer(&mut out, &entry)?;
+        out.write_all(b"\n")?;
+        count += 1;
+    }
+
+    Ok(count)
+}
+
+/// Merges a JSONL export into the database. Malformed lines are skipped rather
+/// than aborting the file; matching minutes are overwritten, so importing the
+/// same file twice cannot double-count.
+pub fn import_file(conn: &mut Connection, path: &str) -> Result<(u64, u64), AppError> {
+    if std::fs::metadata(path)?.len() > MAX_IMPORT_BYTES {
+        return Err(AppError::Io(std::io::Error::other(
+            "import file is larger than 1 GB",
+        )));
+    }
+
+    let file = BufReader::new(std::fs::File::open(path)?);
+    let tx = conn.transaction()?;
+    let mut imported = 0_u64;
+    let mut skipped = 0_u64;
+
+    {
+        let mut stmt = tx.prepare(
+            "INSERT INTO usage_minute (ts_min, iface, rx, tx) VALUES (?1, ?2, ?3, ?4)
+             ON CONFLICT(ts_min, iface) DO UPDATE SET rx = excluded.rx, tx = excluded.tx",
+        )?;
+
+        for line in file.lines() {
+            let line = line?;
+            if line.trim().is_empty() {
+                continue;
+            }
+
+            match serde_json::from_str::<UsageRow>(&line) {
+                Ok(row) if valid_row(&row) => {
+                    stmt.execute(params![
+                        row.ts,
+                        row.iface,
+                        row.rx as i64,
+                        row.tx as i64
+                    ])?;
+                    imported += 1;
+                }
+                _ => skipped += 1,
+            }
+        }
+    }
+
+    tx.commit()?;
+    Ok((imported, skipped))
+}
+
+fn valid_row(row: &UsageRow) -> bool {
+    let max = i64::MAX as u64;
+    row.ts > 0
+        && !row.iface.trim().is_empty()
+        && row.iface.len() <= 128
+        && row.rx <= max
+        && row.tx <= max
+}
+
 pub fn clear_all(conn: &Connection) -> Result<(), AppError> {
     conn.execute_batch("DELETE FROM usage_minute; DELETE FROM iface_cumulative;")?;
     Ok(())
@@ -260,6 +341,11 @@ pub fn load_config(conn: &Connection) -> Result<Config, AppError> {
                 }
             }
             "lan_token" => config.lan_token = value,
+            "retention_days" => {
+                if let Ok(parsed) = value.parse() {
+                    config.retention_days = parsed;
+                }
+            }
             _ => {}
         }
     }
@@ -296,6 +382,7 @@ pub fn save_config(conn: &Connection, config: &Config) -> Result<(), AppError> {
         ("speedtest_enabled", config.speedtest_enabled.to_string()),
         ("lan_enabled", config.lan_enabled.to_string()),
         ("lan_token", config.lan_token.clone()),
+        ("retention_days", config.retention_days.to_string()),
     ];
     for (key, value) in pairs {
         conn.execute(
@@ -530,6 +617,39 @@ pub fn list_anomalies(conn: &Connection, limit: u32) -> Result<Vec<Anomaly>, App
     Ok(out)
 }
 
+/// Every anomaly in the window, dismissed or not: a marker is history, not an
+/// inbox item, so dismissing the feed should not erase it from the chart.
+pub fn anomaly_marks(conn: &Connection, since: i64) -> Result<Vec<(i64, String)>, AppError> {
+    let mut stmt = conn.prepare("SELECT ts, kind FROM anomalies WHERE ts >= ?1 ORDER BY ts")?;
+    let rows = stmt.query_map(params![since], |row| Ok((row.get(0)?, row.get(1)?)))?;
+
+    let mut out = Vec::new();
+    for row in rows {
+        out.push(row?);
+    }
+    Ok(out)
+}
+
+/// Folds minute rows older than `cutoff` into one row per local hour and
+/// interface. Totals, day/month charts and hour-of-day figures are unchanged;
+/// only sub-hour resolution is lost. Safe to run repeatedly.
+pub fn compact_history(conn: &Connection, cutoff: i64, tz_offset: i32) -> Result<(), AppError> {
+    conn.execute(
+        "INSERT INTO usage_minute (ts_min, iface, rx, tx)
+         SELECT ts_min - ((ts_min + ?1) % 3600) AS h, iface, SUM(rx), SUM(tx)
+         FROM usage_minute
+         WHERE ts_min < ?2
+         GROUP BY h, iface
+         ON CONFLICT(ts_min, iface) DO UPDATE SET rx = excluded.rx, tx = excluded.tx",
+        params![tz_offset, cutoff],
+    )?;
+    conn.execute(
+        "DELETE FROM usage_minute WHERE ts_min < ?1 AND (ts_min + ?2) % 3600 != 0",
+        params![cutoff, tz_offset],
+    )?;
+    Ok(())
+}
+
 pub fn dismiss_anomaly(conn: &Connection, id: i64) -> Result<(), AppError> {
     conn.execute("UPDATE anomalies SET dismissed = 1 WHERE id = ?1", params![id])?;
     Ok(())
@@ -648,5 +768,86 @@ mod tests {
         let rows = buckets(&conn, 1_699_000_000, 1_701_000_000, 86_400, 0).unwrap();
         let total: u64 = rows.iter().map(|(_, rx, tx)| rx + tx).sum();
         assert_eq!(total, 15);
+    }
+
+    #[test]
+    fn compaction_keeps_totals_and_tolerates_reruns() {
+        let conn = Connection::open_in_memory().unwrap();
+        conn.execute_batch(
+            "CREATE TABLE usage_minute (
+                ts_min INTEGER NOT NULL, iface TEXT NOT NULL,
+                rx INTEGER NOT NULL DEFAULT 0, tx INTEGER NOT NULL DEFAULT 0,
+                PRIMARY KEY (ts_min, iface)
+             );",
+        )
+        .unwrap();
+
+        insert_usage(&conn, 36_000, "eth", 1, 1).unwrap();
+        insert_usage(&conn, 36_060, "eth", 2, 1).unwrap();
+        insert_usage(&conn, 36_120, "eth", 3, 1).unwrap();
+        insert_usage(&conn, 39_600, "wifi", 7, 7).unwrap();
+
+        compact_history(&conn, 43_200, 0).unwrap();
+        compact_history(&conn, 43_200, 0).unwrap();
+
+        let (rx, tx): (i64, i64) = conn
+            .query_row("SELECT SUM(rx), SUM(tx) FROM usage_minute", [], |row| {
+                Ok((row.get(0)?, row.get(1)?))
+            })
+            .unwrap();
+        assert_eq!((rx, tx), (13, 10));
+
+        let count: i64 = conn
+            .query_row("SELECT COUNT(*) FROM usage_minute", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(count, 2);
+
+        let (hour_rx, hour_tx): (i64, i64) = conn
+            .query_row(
+                "SELECT rx, tx FROM usage_minute WHERE ts_min = 36000",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .unwrap();
+        assert_eq!((hour_rx, hour_tx), (6, 3));
+    }
+
+    #[test]
+    fn export_import_round_trip_skips_junk_and_is_idempotent() {
+        let mut conn = Connection::open_in_memory().unwrap();
+        conn.execute_batch(
+            "CREATE TABLE usage_minute (
+                ts_min INTEGER NOT NULL, iface TEXT NOT NULL,
+                rx INTEGER NOT NULL DEFAULT 0, tx INTEGER NOT NULL DEFAULT 0,
+                PRIMARY KEY (ts_min, iface)
+             );",
+        )
+        .unwrap();
+
+        insert_usage(&conn, 3_600, "Wi-Fi", 100, 20).unwrap();
+        insert_usage(&conn, 3_660, "Ethernet", 7, 8).unwrap();
+
+        let mut buffer = Vec::new();
+        assert_eq!(export_rows(&conn, &mut buffer).unwrap(), 2);
+
+        buffer.extend_from_slice(
+            b"not json\n{\"ts\":3660,\"iface\":\"Wi-Fi\",\"rx\":-5,\"tx\":1}\n",
+        );
+        let path = std::env::temp_dir().join(format!(
+            "datapulse-import-{}.jsonl",
+            std::process::id()
+        ));
+        std::fs::write(&path, &buffer).unwrap();
+
+        let imported = import_file(&mut conn, path.to_str().unwrap()).unwrap();
+        assert_eq!(imported, (2, 2));
+        let again = import_file(&mut conn, path.to_str().unwrap()).unwrap();
+        assert_eq!(again, (2, 2));
+        let _ = std::fs::remove_file(&path);
+
+        let total: i64 = conn
+            .query_row("SELECT SUM(rx + tx) FROM usage_minute", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(total, 135);
     }
 }

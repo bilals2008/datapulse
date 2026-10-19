@@ -23,6 +23,9 @@ pub struct Config {
     pub lan_enabled: bool,
     /// Path token for the LAN dashboard; any request without it is refused.
     pub lan_token: String,
+    /// Days of per-minute history before samples fold into hourly totals.
+    /// `0` keeps every minute forever.
+    pub retention_days: u32,
 }
 
 impl Default for Config {
@@ -38,6 +41,7 @@ impl Default for Config {
             speedtest_enabled: false,
             lan_enabled: false,
             lan_token: String::new(),
+            retention_days: 0,
         }
     }
 }

@@ -38,6 +38,7 @@ export function DashboardView({ onOpenSettings }: DashboardViewProps) {
   const { settings } = useSettings();
   const { data: today } = usePoll(() => api.usageSeries("today"), 20000);
   const { data: week } = usePoll(() => api.usageSeries("7d"), 60000);
+  const { data: marks } = usePoll(() => api.anomalyMarks("today"), 30000);
   const now = new Date();
   const yearEnd = now.getMonth() === 11 && now.getDate() >= 25;
 
@@ -118,6 +119,12 @@ export function DashboardView({ onOpenSettings }: DashboardViewProps) {
             <CardTitle>Today</CardTitle>
             <CardDescription>Hourly transfer for the current day</CardDescription>
             <CardAction className="flex items-center gap-4">
+              {marks && marks.length > 0 ? (
+                <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                  <span className="size-2 rounded-full bg-warning" />
+                  Unusual
+                </span>
+              ) : null}
               <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
                 <span className="size-2 rounded-[2px] bg-download" />
                 Download
@@ -132,6 +139,7 @@ export function DashboardView({ onOpenSettings }: DashboardViewProps) {
             <UsageChart
               buckets={today?.buckets ?? []}
               range="today"
+              marks={marks ?? []}
               className="h-64 xl:h-full"
             />
           </CardContent>

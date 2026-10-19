@@ -7,7 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-## [Unreleased]
+## [0.3.3] - October 19, 2026
+
+### Added
+
+#### Usage
+
+- Anomalies appear on the usage chart as warning dots, with the kind named in the tooltip and a legend entry
+
+#### Storage
+
+- Settings → Storage → History detail folds samples older than the chosen window into hourly totals, keeping daily and monthly figures exact while the database stops growing by a row a minute
+- Backup and restore exports every sample to a JSONL file and imports one back; matching minutes are overwritten, so importing the same file twice is safe
 
 ---
 

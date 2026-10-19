@@ -386,6 +386,7 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
+        .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_autostart::init(
             tauri_plugin_autostart::MacosLauncher::LaunchAgent,
             None,
@@ -502,7 +503,10 @@ pub fn run() {
             commands::get_wifi_info,
             commands::get_app_meta,
             commands::clear_history,
+            commands::export_usage,
+            commands::import_usage,
             commands::get_anomalies,
+            commands::get_anomaly_marks,
             commands::dismiss_anomaly,
             commands::dismiss_all_anomalies,
             commands::get_timeline,

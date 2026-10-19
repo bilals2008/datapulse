@@ -104,6 +104,14 @@ pub struct Anomaly {
     pub procs: Vec<ProcessSample>,
 }
 
+/// Where to draw an anomaly marker on the usage chart.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AnomalyMark {
+    pub ts: i64,
+    pub kind: String,
+}
+
 /// One process captured while an anomaly was being recorded. This is a hint,
 /// not measured per-process traffic: the OS does not attribute bytes per
 /// process without an ETW/admin session.
@@ -113,6 +121,23 @@ pub struct ProcessSample {
     pub name: String,
     pub cpu: f64,
     pub disk_written: u64,
+}
+
+/// One stored minute of usage, as written by an export and read by an import.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UsageRow {
+    /// Start of the minute, Unix seconds.
+    pub ts: i64,
+    pub iface: String,
+    pub rx: u64,
+    pub tx: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ImportResult {
+    pub imported: u64,
+    pub skipped: u64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

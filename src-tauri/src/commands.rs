@@ -7,12 +7,12 @@ use crate::analytics;
 use crate::error::AppError;
 use crate::lan::LanServer;
 use crate::models::{
-    Anomaly, AppMeta, BusiestDay, DailyTotal, FreeWindow, HourBytes, InterfaceTotal, LanInfo,
-    QuotaStatus, Recap, SpeedHour, SpeedReport, SpeedSample, TickPayload, Timeline, TimelineBucket,
-    UsageBucket, UsageSeries, Wrapped,
+    Anomaly, AnomalyMark, AppMeta, BusiestDay, DailyTotal, FreeWindow, HourBytes, ImportResult,
+    InterfaceTotal, LanInfo, QuotaStatus, Recap, SpeedHour, SpeedReport, SpeedSample, TickPayload,
+    Timeline, TimelineBucket, UsageBucket, UsageSeries, Wrapped,
 };
 use crate::state::{AppState, Config};
-use crate::{db, net, speed};
+use crate::{collector, db, net, speed};
 
 type Res<T> = Result<T, AppError>;
 
@@ -48,6 +48,7 @@ pub fn set_settings(state: State<'_, Arc<AppState>>, config: Config) -> Res<Conf
         next.rate_per_gb = 0.0;
     }
     next.currency = next.currency.trim().chars().take(6).collect();
+    next.retention_days = next.retention_days.min(3650);
 
     let previous = state.config.lock().unwrap().clone();
     if next.lan_enabled && next.lan_token.is_empty() {
@@ -60,6 +61,10 @@ pub fn set_settings(state: State<'_, Arc<AppState>>, config: Config) -> Res<Conf
     }
 
     *state.config.lock().unwrap() = next.clone();
+
+    if previous.retention_days != next.retention_days {
+        collector::compact(state.inner());
+    }
 
     if previous.lan_enabled != next.lan_enabled || previous.lan_token != next.lan_token {
         apply_lan(state.inner(), &next);
@@ -223,6 +228,19 @@ pub fn quota_status(state: &Arc<AppState>) -> Res<QuotaStatus> {
 pub fn get_anomalies(state: State<'_, Arc<AppState>>, limit: u32) -> Res<Vec<Anomaly>> {
     let conn = state.db.lock().unwrap();
     db::list_anomalies(&conn, limit)
+}
+
+#[tauri::command]
+pub fn get_anomaly_marks(
+    state: State<'_, Arc<AppState>>,
+    range: String,
+) -> Res<Vec<AnomalyMark>> {
+    let since = plan_series(&range).since;
+    let conn = state.db.lock().unwrap();
+    Ok(db::anomaly_marks(&conn, since)?
+        .into_iter()
+        .map(|(ts, kind)| AnomalyMark { ts, kind })
+        .collect())
 }
 
 #[tauri::command]
@@ -712,6 +730,20 @@ pub fn get_app_meta(state: State<'_, Arc<AppState>>) -> Res<AppMeta> {
         db_path: state.db_path.clone(),
         platform: std::env::consts::OS.to_string(),
     })
+}
+
+#[tauri::command]
+pub fn export_usage(state: State<'_, Arc<AppState>>, path: String) -> Res<u64> {
+    let conn = state.db.lock().unwrap();
+    let file = std::io::BufWriter::new(std::fs::File::create(&path)?);
+    db::export_rows(&conn, file)
+}
+
+#[tauri::command]
+pub fn import_usage(state: State<'_, Arc<AppState>>, path: String) -> Res<ImportResult> {
+    let mut conn = state.db.lock().unwrap();
+    let (imported, skipped) = db::import_file(&mut conn, &path)?;
+    Ok(ImportResult { imported, skipped })
 }
 
 #[tauri::command]

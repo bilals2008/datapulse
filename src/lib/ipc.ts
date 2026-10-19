@@ -76,6 +76,12 @@ export type Anomaly = {
   procs: ProcessSample[];
 };
 
+/** An anomaly's place on the usage chart. */
+export type AnomalyMark = {
+  ts: number;
+  kind: Anomaly["kind"];
+};
+
 /** Busy processes at the moment a spike was recorded. A hint, not per-app traffic. */
 export type ProcessSample = {
   name: string;
@@ -198,9 +204,16 @@ export type AppSettings = {
   speedtestEnabled: boolean;
   lanEnabled: boolean;
   lanToken: string;
+  /** Days of per-minute history before samples fold into hourly totals. 0 keeps everything. */
+  retentionDays: number;
 };
 
 export type UsageRange = "today" | "7d" | "30d" | "12m";
+
+export type ImportResult = {
+  imported: number;
+  skipped: number;
+};
 
 export const api = {
   snapshot: () => invoke<TickPayload>("get_snapshot"),
@@ -213,6 +226,8 @@ export const api = {
     invoke<InterfaceTotal[]>("get_interface_totals", { days }),
   quotaStatus: () => invoke<QuotaStatus>("get_quota_status"),
   anomalies: (limit = 50) => invoke<Anomaly[]>("get_anomalies", { limit }),
+  anomalyMarks: (range: UsageRange) =>
+    invoke<AnomalyMark[]>("get_anomaly_marks", { range }),
   dismissAnomaly: (id: number) => invoke<void>("dismiss_anomaly", { id }),
   dismissAllAnomalies: () => invoke<void>("dismiss_all_anomalies"),
   dailyActivity: (days: number) =>
@@ -229,6 +244,8 @@ export const api = {
   wifiInfo: () => invoke<WifiInfo | null>("get_wifi_info"),
   appMeta: () => invoke<AppMeta>("get_app_meta"),
   clearHistory: () => invoke<void>("clear_history"),
+  exportUsage: (path: string) => invoke<number>("export_usage", { path }),
+  importUsage: (path: string) => invoke<ImportResult>("import_usage", { path }),
   openMainWindow: () => invoke<void>("open_main_window"),
   finishBoot: () => invoke<void>("finish_boot"),
   snapTiny: () => invoke<void>("snap_tiny"),
