@@ -8,6 +8,10 @@ name: Release
 # platform and uploads the bundles + latest.json to a DRAFT GitHub release. Open
 # the draft, review it, and click "Publish release" to ship.
 #
+# Re-running a version that is already in the repo is safe: "explicit" with the
+# current version skips the bump commit and only tags + builds. The job is
+# idempotent, so a failed build can simply be re-run.
+#
 # Write the vX.Y.Z section in CHANGELOG.md before running: it becomes both the
 # release body and latest.json's notes, which is the "What's new" the app shows.
 #
@@ -77,43 +81,48 @@ jobs:
         run: |
           set -euo pipefail
 
-          # Never release on top of our own release commit — that would loop.
-          LAST=$(git log -1 --pretty=%s)
-          if [[ "$LAST" == "chore: release v"* ]]; then
-            echo "release=false" >> "$GITHUB_OUTPUT"
-            echo "Head commit is a release commit — nothing to release."
-            exit 0
-          fi
-
           BUMP="${BUMP:-patch}"
           VERSION="${VERSION:-}"
+          CURRENT=$(node -p "require('./package.json').version")
 
           if [ "$BUMP" = "explicit" ]; then
             if [ -z "$VERSION" ]; then
               echo "bump = explicit requires the 'version' input" >&2
               exit 1
             fi
-            NEXT=$(node scripts/bump-version.mjs "$VERSION")
+            if [ "$VERSION" = "$CURRENT" ]; then
+              NEXT="$CURRENT"
+            else
+              NEXT=$(node scripts/bump-version.mjs "$VERSION")
+            fi
           else
             NEXT=$(node scripts/bump-version.mjs "$BUMP")
           fi
 
-          git add package.json src-tauri/tauri.conf.json src-tauri/Cargo.toml src-tauri/Cargo.lock
-          git commit -m "chore: release v$NEXT [skip ci]"
+          if [ "$NEXT" = "$CURRENT" ]; then
+            echo "Version is already $NEXT — tagging and building without a bump commit."
+          else
+            git add package.json landing/package.json src-tauri/tauri.conf.json src-tauri/Cargo.toml src-tauri/Cargo.lock
+            git commit -m "chore: release v$NEXT [skip ci]"
 
-          for attempt in 1 2 3; do
-            if git push origin "HEAD:${GITHUB_REF_NAME}"; then
-              break
-            fi
-            if [ "$attempt" -eq 3 ]; then
-              echo "branch push failed after 3 attempts" >&2
-              exit 1
-            fi
-            echo "push rejected (attempt $attempt/3) — rebasing and retrying…"
-            git pull --rebase origin "${GITHUB_REF_NAME}"
-          done
+            for attempt in 1 2 3; do
+              if git push origin "HEAD:${GITHUB_REF_NAME}"; then
+                break
+              fi
+              if [ "$attempt" -eq 3 ]; then
+                echo "branch push failed after 3 attempts" >&2
+                exit 1
+              fi
+              echo "push rejected (attempt $attempt/3) — rebasing and retrying…"
+              git pull --rebase origin "${GITHUB_REF_NAME}"
+            done
+          fi
 
-          git tag "v$NEXT"
+          if git rev-parse -q --verify "refs/tags/v$NEXT" >/dev/null; then
+            echo "Tag v$NEXT already exists."
+          else
+            git tag "v$NEXT"
+          fi
           git push origin "v$NEXT"
 
           echo "release=true" >> "$GITHUB_OUTPUT"

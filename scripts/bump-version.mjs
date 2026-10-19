@@ -56,8 +56,9 @@ const cargo = readFileSync(cargoPath, "utf8").replace(
 );
 writeFileSync(cargoPath, cargo);
 
+// `\r?` because a Windows checkout has CRLF line endings.
 const lock = readFileSync(lockPath, "utf8").replace(
-  /(\[\[package\]\]\nname = "datapulse"\nversion = ")[^"]*(")/,
+  /(\[\[package\]\]\r?\nname = "datapulse"\r?\nversion = ")[^"]*(")/,
   `$1${next}$2`,
 );
 writeFileSync(lockPath, lock);

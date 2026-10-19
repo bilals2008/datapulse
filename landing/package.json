@@ -1,7 +1,7 @@
 {
   "name": "datapulse-landing",
   "private": true,
-  "version": "0.3.3",
+  "version": "1.0.0",
   "type": "module",
   "scripts": {
     "dev": "vite",

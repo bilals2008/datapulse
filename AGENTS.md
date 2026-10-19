@@ -160,6 +160,8 @@ trust that first call — `use-settings` retries for exactly this reason, and
   `patch`/`minor`/`major` (or `explicit` for an exact version). It bumps the
   version, tags `vX.Y.Z`, builds every platform and uploads a **draft** release.
   Publish the draft to ship the update. Pushing to `main` runs `ci.yml` only.
+  Repeating `explicit` with the version already in the repo is safe: the bump
+  commit is skipped and it only tags and builds.
 - The owner `bilals2008` appears in `plugins.updater.endpoints`
   (`tauri.conf.json`) and `RELEASES_URL` (`update-card.tsx`). Both must point at
   the same repo or update checks will not resolve.
